@@ -1,6 +1,6 @@
 #pragma once
 
-#include <H5VLpublic.h>
+#include <H5VLconnector.h>
 #include <mpi.h>
 
 #include "H5VL_log_obj.hpp"
@@ -12,20 +12,24 @@
 #define LOGVOL_SELCTION_TYPE_OFFSETS	0x04
 
 /* The log VOL dataset object */
-typedef struct H5VL_log_dset_t : H5VL_log_obj_t {
-	int id;
+typedef struct H5VL_log_dset_info_t {
 	hsize_t ndim;
-	hsize_t dims[H5S_MAX_RANK];
-	hsize_t mdims[H5S_MAX_RANK];
-	MPI_Offset dsteps[H5S_MAX_RANK];
-
-	hid_t dtype;
 	hsize_t esize;
-
+	hid_t dtype;
+	hsize_t dims[H5S_MAX_RANK];
+	MPI_Offset dsteps[H5S_MAX_RANK];
 	std::vector<H5VL_log_filter_t> filters;
+} H5VL_log_dset_info_t;
 
+/* The log VOL dataset object */
+typedef struct H5VL_log_dset_t : H5VL_log_obj_t, H5VL_log_dset_info_t {
+	hsize_t mdims[H5S_MAX_RANK];
+	int id;
 	using H5VL_log_obj_t::H5VL_log_obj_t;
 } H5VL_log_dset_t;
+
+extern int H5Dwrite_n_op_val;
+extern int H5Dread_n_op_val;
 
 void *H5VL_log_dataset_create (void *obj,
 							   const H5VL_loc_params_t *loc_params,
@@ -57,10 +61,10 @@ herr_t H5VL_log_dataset_write (void *dset,
 							   hid_t plist_id,
 							   const void *buf,
 							   void **req);
-herr_t H5VL_log_dataset_get (
-	void *dset, H5VL_dataset_get_t get_type, hid_t dxpl_id, void **req, va_list arguments);
-herr_t H5VL_log_dataset_specific (
-	void *obj, H5VL_dataset_specific_t specific_type, hid_t dxpl_id, void **req, va_list arguments);
-herr_t H5VL_log_dataset_optional (
-	void *obj, H5VL_dataset_optional_t optional_type, hid_t dxpl_id, void **req, va_list arguments);
+herr_t H5VL_log_dataset_get (void *dset, H5VL_dataset_get_args_t *args, hid_t dxpl_id, void **req);
+herr_t H5VL_log_dataset_specific (void *obj,
+								  H5VL_dataset_specific_args_t *args,
+								  hid_t dxpl_id,
+								  void **req);
+herr_t H5VL_log_dataset_optional (void *obj, H5VL_optional_args_t *args, hid_t dxpl_id, void **req);
 herr_t H5VL_log_dataset_close (void *dset, hid_t dxpl_id, void **req);

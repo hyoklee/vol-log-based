@@ -2,12 +2,13 @@
 #include <config.h>
 #endif
 
-#include "H5VL_logi.hpp"
-#include "H5VL_log.h"
-#include "H5VL_log_main.hpp"
-#include "H5VL_log_info.hpp"
-#include "H5VL_logi.hpp"
 #include <hdf5.h>
+
+#include "H5VL_log.h"
+#include "H5VL_log_dataset.hpp"
+#include "H5VL_log_info.hpp"
+#include "H5VL_log_main.hpp"
+#include "H5VL_logi.hpp"
 
 /*******************/
 /* Local variables */
@@ -17,9 +18,10 @@
 const H5VL_class_t H5VL_log_g = {H5VL_log_VERSION,					 /* version      */
 								 (H5VL_class_value_t)H5VL_log_VALUE, /* value        */
 								 H5VL_log_NAME,						 /* name         */
-								 0,									 /* capability flags */
-								 H5VL_log_init,						 /* initialize   */
-								 H5VL_log_obj_term,					 /* terminate    */
+								 0,					/* Version # of connector                   */
+								 0,					/* capability flags */
+								 H5VL_log_init,		/* initialize   */
+								 H5VL_log_obj_term, /* terminate    */
 								 H5VL_log_info_g,
 								 H5VL_log_wrap_g,
 								 H5VL_log_attr_g,
@@ -47,6 +49,7 @@ H5PL_type_t H5PLget_plugin_type (void) { return H5PL_TYPE_VOL; }
 const void *H5PLget_plugin_info (void) { return &H5VL_log_g; }
 
 int mpi_inited;
+bool h5dwriten_registered = false;
 
 /*-------------------------------------------------------------------------
  * Function:    H5VL_log_init
@@ -70,6 +73,17 @@ herr_t H5VL_log_init (hid_t vipl_id) {
 	mpierr = MPI_Initialized (&mpi_inited);
 	CHECK_MPIERR
 	if (!mpi_inited) { MPI_Init (NULL, NULL); }
+
+	// Register H5Dwrite_n and H5Dread_n
+	if (!h5dwriten_registered) {
+		err = H5VLregister_opt_operation (H5VL_SUBCLS_DATASET, "H5VL_log.H5Dwrite_n",
+										  &H5Dwrite_n_op_val);
+		CHECK_ERR
+		err = H5VLregister_opt_operation (H5VL_SUBCLS_DATASET, "H5VL_log.H5Dread_n",
+										  &H5Dread_n_op_val);
+		CHECK_ERR
+		h5dwriten_registered = true;
+	}
 
 	/* SID no longer recognized at this stage, move to file close
 	if(H5VL_log_dataspace_contig==H5I_INVALID_HID){
@@ -123,6 +137,16 @@ herr_t H5VL_log_obj_term (void) {
 	}
 	*/
 
+	// Unregister H5Dwrite_n and H5Dread_n
+	if (h5dwriten_registered) {
+		err = H5VLunregister_opt_operation (H5VL_SUBCLS_DATASET, "H5VL_log.H5Dwrite_n");
+		CHECK_ERR
+		// Unregister H5Dread_n
+		err = H5VLunregister_opt_operation (H5VL_SUBCLS_DATASET, "H5VL_log.H5Dread_n");
+		CHECK_ERR
+		h5dwriten_registered = false;
+	}
+
 	if (!mpi_inited) {
 		mpierr = MPI_Initialized (&mpi_inited);
 		CHECK_MPIERR
@@ -142,7 +166,7 @@ err_out:;
  *
  *-------------------------------------------------------------------------
  */
-herr_t H5VL_log_optional (void *obj, int op_type, hid_t dxpl_id, void **req, va_list arguments) {
+herr_t H5VL_log_optional (void *obj, H5VL_optional_args_t *args, hid_t dxpl_id, void **req) {
 	H5VL_log_obj_t *o = (H5VL_log_obj_t *)obj;
 	herr_t ret_value;
 
@@ -161,7 +185,7 @@ herr_t H5VL_log_optional (void *obj, int op_type, hid_t dxpl_id, void **req, va_
 	}
 #endif
 
-	ret_value = H5VLoptional (o->uo, o->uvlid, op_type, dxpl_id, req, arguments);
+	ret_value = H5VLoptional (o->uo, o->uvlid, args, dxpl_id, req);
 
 	return ret_value;
 } /* end H5VL_log_optional() */

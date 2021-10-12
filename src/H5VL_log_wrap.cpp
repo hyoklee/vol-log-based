@@ -2,10 +2,10 @@
 #include <config.h>
 #endif
 
-#include "H5VL_log_wrap.hpp"
 #include "H5VL_log_dataseti.hpp"
 #include "H5VL_log_filei.hpp"
 #include "H5VL_log_obj.hpp"
+#include "H5VL_log_wrap.hpp"
 #include "H5VL_logi.hpp"
 
 /********************* */
@@ -110,7 +110,7 @@ void *H5VL_log_wrap_object (void *obj, H5I_type_t type, void *_wrap_ctx) {
 			wop = (H5VL_log_obj_t *)H5VL_log_dataseti_wrap (uo, ctx);
 		} else if (type == H5I_FILE) {
 			wop = (H5VL_log_obj_t *)H5VL_log_filei_wrap (uo, ctx);
-		}else {
+		} else {
 			wop = new H5VL_log_obj_t (ctx, type, uo);
 		}
 	} else
@@ -144,7 +144,9 @@ void *H5VL_log_unwrap_object (void *obj) {
 		hid_t err_id;
 
 		err_id = H5Eget_current_stack ();
-		delete op;
+		if (op->fp != op) {	 // Files are shadow copy
+			delete op;
+		}
 		H5Eset_current_stack (err_id);
 	}
 
