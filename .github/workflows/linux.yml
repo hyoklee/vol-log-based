@@ -49,18 +49,15 @@ jobs:
           ./configure --with-hdf5=${HDF5_DIR} --enable-shared --enable-zlib
           make
           
-      - name: Compile and Test VOL
+      - name: Test
         run: |
-          # Compile vol-log tests
           mydir="$PWD"
-          cd $mydir
-          cd test
-
-          # Set Environmental Variables
           export H5_DIR=$mydir/hdf5
           export VOL_DIR=$mydir/
           export HDF5_DIR=$mydir/hdf5/install
           export LD_LIBRARY_PATH=$VOL_DIR/src:$H5_DIR/install/lib:$LD_LIBRARY_PATH
           export HDF5_PLUGIN_PATH="$VOL_DIR/src"
           export HDF5_VOL_CONNECTOR="LOG under_vol=0;under_info={}"
+          cd $mydir
+          cd test
           make check

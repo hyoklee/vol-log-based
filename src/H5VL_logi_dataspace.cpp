@@ -483,7 +483,7 @@ herr_t H5VL_log_selections::get_mpi_type (size_t esize, MPI_Datatype *type) {
 		lens[i] = 1;
 	}
 
-	mpierr = MPI_Type_struct (nsel, lens, offs, types, type);
+	mpierr = MPI_Type_create_struct (nsel, lens, offs, types, type);
 	CHECK_MPIERR
 	mpierr = MPI_Type_commit (type);
 	CHECK_MPIERR
