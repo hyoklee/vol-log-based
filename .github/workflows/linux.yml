@@ -43,6 +43,7 @@ jobs:
       - name: Install
         run: |          
           mydir="$PWD"
+          export HDF5_DIR=$mydir/hdf5/install
           export VOL_DIR=$mydir
           cd $VOL_DIR
           autoreconf -fvi
