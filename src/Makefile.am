@@ -6,7 +6,7 @@
 
 SUFFIXES = .cpp .hpp .o
 
-AM_CPPFLAGS = -I.
+AM_CPPFLAGS = -I${top_srcdir}/src
 if LOGVOL_DEBUG
    AM_CPPFLAGS += -DLOGVOL_DEBUG=1
 endif
@@ -58,7 +58,7 @@ CXX_SRCS =  H5VL_log_att.cpp \
             H5VL_logi_util.cpp \
             H5VL_logi_wrapper.cpp \
             H5VL_logi_zip.cpp
-            
+
 if LOGVOL_DEBUG
    CXX_SRCS += H5VL_logi_debug.cpp
 endif
