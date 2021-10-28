@@ -230,7 +230,7 @@ herr_t H5VL_log_filei_metaflush (H5VL_log_file_t *fp) {
 		lens[nentry++] = (int)rp->hdr->meta_size;
 	}
 
-	mpierr = MPI_Type_hindexed (nentry, lens, offs, MPI_BYTE, &mmtype);
+	mpierr = MPI_Type_create_hindexed (nentry, lens, offs, MPI_BYTE, &mmtype);
 	CHECK_MPIERR
 	mpierr = MPI_Type_commit (&mmtype);
 	CHECK_MPIERR
