@@ -487,7 +487,7 @@ herr_t H5VL_log_nb_flush_write_reqs (void *file, hid_t dxplid) {
 			fsize_local += fp->wreqs[i]->rsize;
 		}
 
-		mpierr = MPI_Type_hindexed (cnt, mlens, moffs, MPI_BYTE, &mtype);
+		mpierr = MPI_Type_create_hindexed (cnt, mlens, moffs, MPI_BYTE, &mtype);
 		CHECK_MPIERR
 		mpierr = MPI_Type_commit (&mtype);
 		CHECK_MPIERR
