@@ -5,7 +5,7 @@
 #include <hdf5.h>
 //
 #include "H5VL_log_dataset.hpp"
-#include "H5VL_logi_meta.hpp"
+// #include "H5VL_logi_meta.hpp"
 
 class H5VL_log_selections {
    public:
