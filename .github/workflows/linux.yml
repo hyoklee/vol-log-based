@@ -1,0 +1,65 @@
+name: linux 
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - 'docs/**'
+  workflow_dispatch:
+
+jobs:
+  vol-log:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libtool
+          # hdf5
+          git clone https://github.com/HDFGroup/hdf5.git
+          # mpi
+          sudo apt-get install libopenmpi-dev
+          # zlib
+          sudo apt-get install zlib1g-dev 
+          
+      - name: Installation
+        run: |
+          mydir="$PWD"
+          export HDF5_DIR=$mydir/hdf5/install
+          export VOL_DIR=$mydir
+          
+          mkdir $HDF5_DIR
+          # Compile HDF5
+          cd hdf5
+          export HDF5_LIBTOOL=/usr/bin/libtoolize
+          ./autogen.sh
+          ./configure --prefix=$HDF5_DIR --enable-parallel
+          make && make install
+          
+          # Compile VOL connector
+          cd $VOL_DIR/src
+          ./configure --with-hdf5=${HDF5_DIR} --enable-shared --enable-zlib
+          make
+          
+      - name: Compile and Test VOL
+        run: |
+          # Compile vol-log tests
+          mydir="$PWD"
+          cd $mydir
+          cd test
+
+          # Set Environmental Variables
+          export H5_DIR=$mydir/hdf5
+          export VOL_DIR=$mydir/
+          export HDF5_DIR=$mydir/hdf5/install
+          export LD_LIBRARY_PATH=$VOL_DIR/src:$H5_DIR/install/lib:$LD_LIBRARY_PATH
+          export HDF5_PLUGIN_PATH="$VOL_DIR/src"
+          export HDF5_VOL_CONNECTOR="LOG under_vol=0;under_info={}"
+          make check

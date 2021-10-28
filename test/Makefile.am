@@ -6,10 +6,7 @@
 #
 # @configure_input@
 
-C_SUBDIRS = basic \
-			parallel
-            # hdf5 \
-			# phdf5
+C_SUBDIRS = basic 
 
 DIST_SUBDIRS = $(C_SUBDIRS) 
 

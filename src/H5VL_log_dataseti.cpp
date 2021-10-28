@@ -11,6 +11,7 @@
 #include "H5VL_log_dataset.hpp"
 #include "H5VL_log_dataseti.hpp"
 #include "H5VL_log_filei.hpp"
+#include "H5VL_log_req.hpp"
 #include "H5VL_logi.hpp"
 #include "H5VL_logi_idx.hpp"
 #include "H5VL_logi_util.hpp"
@@ -80,7 +81,7 @@ void sortoffsets (int len, MPI_Aint *oa, MPI_Aint *ob, int *l) {
 }
 
 // Assume no overlaping read
-herr_t H5VL_log_dataset_readi_gen_rtypes (std::vector<H5VL_log_search_ret_t> blocks,
+herr_t H5VL_log_dataset_readi_gen_rtypes (std::vector<H5VL_log_idx_search_ret_t> blocks,
 										  MPI_Datatype *ftype,
 										  MPI_Datatype *mtype,
 										  std::vector<H5VL_log_copy_ctx> &overlaps) {
@@ -105,8 +106,11 @@ herr_t H5VL_log_dataset_readi_gen_rtypes (std::vector<H5VL_log_search_ret_t> blo
 	std::sort (blocks.begin (), blocks.end ());
 
 	for (i = 0; i < nblock - 1; i++) {
-		if ((blocks[i].foff == blocks[i + 1].foff) &&
-			interleve (blocks[i].ndim, blocks[i].fstart, blocks[i].count, blocks[i + 1].fstart)) {
+		if (blocks[i].zbuf) {
+			newgroup[i] = true;
+		} else if ((blocks[i].foff == blocks[i + 1].foff) &&
+				   interleve (blocks[i].info->ndim, blocks[i].dstart, blocks[i].count,
+							  blocks[i + 1].dstart)) {
 			newgroup[i] = false;
 		} else {
 			newgroup[i] = true;
@@ -124,7 +128,7 @@ herr_t H5VL_log_dataset_readi_gen_rtypes (std::vector<H5VL_log_search_ret_t> blo
 			} else {
 				for (; j <= i; j++) {  // Breakdown
 					nrow = 1;
-					for (k = 0; k < blocks[i].ndim - 1; k++) { nrow *= blocks[j].count[k]; }
+					for (k = 0; k < blocks[i].info->ndim - 1; k++) { nrow *= blocks[j].count[k]; }
 					nt += nrow;
 				}
 			}
@@ -142,65 +146,81 @@ herr_t H5VL_log_dataset_readi_gen_rtypes (std::vector<H5VL_log_search_ret_t> blo
 	for (i = j = 0; i < nblock; i++) {
 		if (newgroup[i]) {
 			if (i == j) {  // only 1
-				etype = H5VL_logi_get_mpi_type_by_size (blocks[i].esize);
-				if (etype == MPI_DATATYPE_NULL) {
-					mpierr = MPI_Type_contiguous (blocks[i].esize, MPI_BYTE, &etype);
-					CHECK_MPIERR
-					mpierr = MPI_Type_commit (&etype);
-					CHECK_MPIERR
-					k = 1;
+				if (blocks[j].zbuf) {
+					// Read raw data for filtered datasets
+					if (blocks[j].fsize >
+						0) {  // Don't need to read if read by other intersections already
+						foffs[nt]  = blocks[j].foff;
+						moffs[nt]  = (MPI_Aint) (blocks[j].zbuf);
+						lens[nt]   = blocks[j].fsize;
+						ftypes[nt] = MPI_BYTE;
+						mtypes[nt] = MPI_BYTE;
+						nt++;
+					}
 				} else {
-					k = 0;
-				}
+					etype = H5VL_logi_get_mpi_type_by_size (blocks[i].info->esize);
+					if (etype == MPI_DATATYPE_NULL) {
+						mpierr = MPI_Type_contiguous (blocks[i].info->esize, MPI_BYTE, &etype);
+						CHECK_MPIERR
+						mpierr = MPI_Type_commit (&etype);
+						CHECK_MPIERR
+						k = 1;
+					} else {
+						k = 0;
+					}
 
-				mpierr = H5VL_log_debug_MPI_Type_create_subarray (blocks[i].ndim, blocks[j].fsize,
-																  blocks[j].count, blocks[j].fstart,
-																  MPI_ORDER_C, etype, ftypes + nt);
-				CHECK_MPIERR
-				mpierr = H5VL_log_debug_MPI_Type_create_subarray (blocks[i].ndim, blocks[j].msize,
-																  blocks[j].count, blocks[j].mstart,
-																  MPI_ORDER_C, etype, mtypes + nt);
-				CHECK_MPIERR
-				mpierr = MPI_Type_commit (ftypes + nt);
-				CHECK_MPIERR
-				mpierr = MPI_Type_commit (mtypes + nt);
-				CHECK_MPIERR
-
-				if (k) {
-					mpierr = MPI_Type_free (&etype);
+					mpierr = H5VL_log_debug_MPI_Type_create_subarray (
+						blocks[i].info->ndim, blocks[j].dsize, blocks[j].count, blocks[j].dstart,
+						MPI_ORDER_C, etype, ftypes + nt);
 					CHECK_MPIERR
+					mpierr = H5VL_log_debug_MPI_Type_create_subarray (
+						blocks[i].info->ndim, blocks[j].msize, blocks[j].count, blocks[j].mstart,
+						MPI_ORDER_C, etype, mtypes + nt);
+
+					CHECK_MPIERR
+					mpierr = MPI_Type_commit (ftypes + nt);
+					CHECK_MPIERR
+					mpierr = MPI_Type_commit (mtypes + nt);
+					CHECK_MPIERR
+
+					if (k) {
+						mpierr = MPI_Type_free (&etype);
+						CHECK_MPIERR
+					}
+
+					foffs[nt] = blocks[j].foff;
+					moffs[nt] = (MPI_Offset) (blocks[j].xbuf);
+					lens[nt]  = 1;
+					nt++;
 				}
 
-				foffs[nt] = blocks[j].foff;
-				moffs[nt] = blocks[j].moff;
-				lens[nt]  = 1;
 				j++;
-				nt++;
 			} else {
 				old_nt = nt;
-				for (; j <= i; j++) {  // Breakdown each intersecting blocks
-					fssize[blocks[i].ndim - 1] = 1;
-					mssize[blocks[i].ndim - 1] = 1;
-					for (k = blocks[i].ndim - 2; k > -1; k--) {
-						fssize[k] = fssize[k + 1] * blocks[j].fsize[k + 1];
+				for (; j <= i; j++) {  // Breakdown each interleaving blocks
+					fssize[blocks[i].info->ndim - 1] = 1;
+					mssize[blocks[i].info->ndim - 1] = 1;
+					for (k = blocks[i].info->ndim - 2; k > -1; k--) {
+						fssize[k] = fssize[k + 1] * blocks[j].dsize[k + 1];
 						mssize[k] = mssize[k + 1] * blocks[j].msize[k + 1];
 					}
 
-					memset (ctr, 0, sizeof (MPI_Offset) * blocks[i].ndim);
+					memset (ctr, 0, sizeof (MPI_Offset) * blocks[i].info->ndim);
 					while (ctr[0] < blocks[j].count[0]) {  // Foreach row
-						lens[nt]  = blocks[j].count[blocks[i].ndim - 1] * blocks[j].esize;
+						lens[nt] =
+							blocks[j].count[blocks[i].info->ndim - 1] * blocks[j].info->esize;
 						foffs[nt] = blocks[j].foff;
-						moffs[nt] = blocks[j].moff;
-						for (k = 0; k < blocks[i].ndim; k++) {	// Calculate offset
-							foffs[nt] += fssize[k] * (blocks[j].fstart[k] + ctr[k]);
+						moffs[nt] = (MPI_Offset) (blocks[j].xbuf);
+						for (k = 0; k < blocks[i].info->ndim; k++) {  // Calculate offset
+							foffs[nt] += fssize[k] * (blocks[j].dstart[k] + ctr[k]);
 							moffs[nt] += mssize[k] * (blocks[j].mstart[k] + ctr[k]);
 						}
 						ftypes[nt] = MPI_BYTE;
 						mtypes[nt] = MPI_BYTE;
 						nt++;
 
-						ctr[blocks[i].ndim - 2]++;	// Move to next position
-						for (k = blocks[i].ndim - 2; k > 0; k--) {
+						ctr[blocks[i].info->ndim - 2]++;  // Move to next position
+						for (k = blocks[i].info->ndim - 2; k > 0; k--) {
 							if (ctr[k] >= blocks[j].count[k]) {
 								ctr[k] = 0;
 								ctr[k - 1]++;
@@ -287,11 +307,8 @@ void *H5VL_log_dataseti_open_with_uo (void *obj,
 	dp = new H5VL_log_dset_t (op, H5I_DATASET, uo);
 	CHECK_PTR (dp)
 
-	H5VL_LOGI_PROFILING_TIMER_START;
-	err = H5VL_logi_dataset_get_wrapper (dp->uo, dp->uvlid, H5VL_DATASET_GET_TYPE, dxpl_id, NULL,
-										 &(dp->dtype));
-	CHECK_ERR
-	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VLDATASET_GET);
+	dp->dtype = H5VL_logi_dataset_get_type (dp->fp, dp->uo, dp->uvlid, dxpl_id);
+	CHECK_ID (dp->dtype)
 
 	dp->esize = H5Tget_size (dp->dtype);
 	CHECK_ID (dp->esize)
@@ -336,11 +353,8 @@ void *H5VL_log_dataseti_wrap (void *uo, H5VL_log_obj_t *cp) {
 	dp = new H5VL_log_dset_t (cp, H5I_DATASET, uo);
 	CHECK_PTR (dp)
 
-	H5VL_LOGI_PROFILING_TIMER_START;
-	err = H5VL_logi_dataset_get_wrapper (dp->uo, dp->uvlid, H5VL_DATASET_GET_TYPE,
-										 H5P_DATASET_XFER_DEFAULT, NULL, &(dp->dtype));
-	CHECK_ERR
-	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VLDATASET_GET);
+	dp->dtype = H5VL_logi_dataset_get_type (dp->fp, dp->uo, dp->uvlid, H5P_DATASET_XFER_DEFAULT);
+	CHECK_ID (dp->dtype)
 	dp->esize = H5Tget_size (dp->dtype);
 	CHECK_ID (dp->esize)
 
@@ -363,69 +377,73 @@ fn_exit:;
 	return (void *)dp;
 } /* end H5VL_log_dataset_open() */
 
-/*
-herr_t H5VL_log_dataseti_writen (hid_t did,
-				  hid_t mem_type_id,
-				  int n,
-				  MPI_Offset **starts,
-				  MPI_Offset **counts,
-				  hid_t dxplid,
-				  void *buf) {
-	herr_t err			= 0;
-	H5VL_log_dset_t *dp = NULL;
-	int i, j, k, l;
-	size_t esize;
-	H5VL_log_wreq_t r;
-	htri_t eqtype;
-	H5VL_log_req_type_t rtype;
-	MPI_Datatype ptype = MPI_DATATYPE_NULL;
+/*-------------------------------------------------------------------------
+ * Function:    H5VL_log_dataset_write
+ *
+ * Purpose:     Writes data elements from a buffer into a dataset.
+ *
+ * Return:      Success:    0
+ *              Failure:    -1
+ *
+ *-------------------------------------------------------------------------
+ */
+herr_t H5VL_log_dataseti_write (H5VL_log_dset_t *dp,
+								hid_t mem_type_id,
+								hid_t mem_space_id,
+								H5VL_log_selections *dsel,
+								hid_t plist_id,
+								const void *buf,
+								void **req) {
+	herr_t err = 0;
+	int i;
+	size_t esize;							 // Element size of the memory type
+	size_t ssize;							 // Size of a selection block
+	H5VL_log_wreq_t *r;						 // Request obj
+	H5VL_log_req_data_block_t db;			 // Request data
+	htri_t eqtype;							 // user buffer type equals dataset type?
+	H5S_sel_type stype;						 // Dataset sselection type
+	H5S_sel_type mstype;					 // Memory space selection type
+	H5VL_log_req_type_t rtype;				 // Whether req is nonblocking
+	MPI_Datatype ptype = MPI_DATATYPE_NULL;	 // Packing type for non-contiguous memory buffer
+	H5VL_log_req_t *rp;						 // Request obj
 	H5VL_LOGI_PROFILING_TIMER_START;
 
 	H5VL_LOGI_PROFILING_TIMER_START;
 
-	// Get VOL object
-	dp = (H5VL_log_dset_t *)H5VLobject (did);
-	CHECK_PTR (dp)
+	// Check mem space selection
+	if (mem_space_id == H5S_ALL)
+		mstype = H5S_SEL_ALL;
+	else if (mem_space_id == H5S_CONTIG)
+		mstype = H5S_SEL_ALL;
+	else
+		mstype = H5Sget_select_type (mem_space_id);
 
 	// Sanity check
+	if (dsel->nsel == 0) goto err_out;	// No elements selected
 	if (!buf) ERR_OUT ("user buffer can't be NULL");
-
 	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_WRITE_INIT);
 
-	H5VL_LOGI_PROFILING_TIMER_START;
-	// Setting metadata;
-	r.hdr.did = dp->id;
-	// r.ndim	= dp->ndim;
-	r.ldid	= -1;
-	r.ldoff = 0;
-	r.ubuf	= (char *)buf;
-	r.rsize = 0;  // Nomber of elements in record
-	r.hdr.flag	= 0;
+	if (dp->fp->config ^ H5VL_FILEI_CONFIG_METADATA_MERGE) {
+		H5VL_LOGI_PROFILING_TIMER_START;
 
-	// Gather starts and counts
-	r.sels.resize (n);
-	for (i = 0; i < n; i++) {
-		r.sels[i].size = 1;
-		for (j = 0; j < dp->ndim; j++) {
-			r.sels[i].start[j] = starts[i][j];
-			r.sels[i].count[j] = counts[i][j];
-			r.sels[i].size *= r.sels[i].count[j];
-		}
-		r.rsize += r.sels[i].size;
-		r.sels[i].size *= dp->esize;
+		db.ubuf = (char *)buf;
+		db.size = dsel->get_sel_size ();  // Number of data elements in the record
+
+		r = new H5VL_log_wreq_t (dp, dsel);
+
+		H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_WRITE_ENCODE);
 	}
-	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_WRITE_START_COUNT);
 
 	// Non-blocking?
-	err = H5Pget_nonblocking (dxplid, &rtype);
+	err = H5Pget_nonblocking (plist_id, &rtype);
 	CHECK_ERR
 
 	// Need convert?
 	eqtype = H5Tequal (dp->dtype, mem_type_id);
 
 	// Can reuse user buffer
-	if (rtype == H5VL_LOG_REQ_NONBLOCKING && eqtype > 0) {
-		r.xbuf = r.ubuf;
+	if (rtype == H5VL_LOG_REQ_NONBLOCKING && eqtype > 0 && mstype == H5S_SEL_ALL) {
+		db.xbuf = db.ubuf;
 	} else {  // Need internal buffer
 		H5VL_LOGI_PROFILING_TIMER_START;
 		// Get element size
@@ -433,16 +451,28 @@ herr_t H5VL_log_dataseti_writen (hid_t did,
 		CHECK_ID (esize)
 
 		// HDF5 type conversion is in place, allocate for whatever larger
-		err = H5VL_log_filei_balloc (dp->fp, r.rsize * std::max (esize, (size_t) (dp->esize)),
-									 (void **)(&(r.xbuf)));
+		err = H5VL_log_filei_balloc (dp->fp, db.size * std::max (esize, (size_t) (dp->esize)),
+									 (void **)(&(db.xbuf)));
 		// err = H5VL_log_filei_pool_alloc (&(dp->fp->data_buf),
-		//								 r.rsize * std::max (esize, (size_t) (dp->esize)),
-		//								 (void **)(&(r.xbuf)));
+		//								 db.size * std::max (esize, (size_t) (dp->esize)),
+		//								 (void **)(&(r->xbuf)));
 		// CHECK_ERR
 
-		// Copy data
-		memcpy (r.xbuf, r.ubuf, r.rsize * esize);
+		// Need packing
+		if (mstype != H5S_SEL_ALL) {
+			i = 0;
 
+			H5VL_LOGI_PROFILING_TIMER_START
+			err = H5VL_log_selections (mem_space_id).get_mpi_type (esize, &ptype);
+			CHECK_ERR
+			H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOGI_GET_DATASPACE_SEL_TYPE);
+
+			MPI_Pack (db.ubuf, 1, ptype, db.xbuf, db.size * esize, &i, dp->fp->comm);
+
+			LOG_VOL_ASSERT (i == db.size * esize)
+		} else {
+			memcpy (db.xbuf, db.ubuf, db.size * esize);
+		}
 		H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_WRITE_PACK);
 
 		H5VL_LOGI_PROFILING_TIMER_START;
@@ -450,28 +480,160 @@ herr_t H5VL_log_dataseti_writen (hid_t did,
 		if (eqtype == 0) {
 			void *bg = NULL;
 
-			if (H5Tget_class (dp->dtype) == H5T_COMPOUND) bg = malloc (r.rsize * dp->esize);
-			err = H5Tconvert (mem_type_id, dp->dtype, r.rsize, r.xbuf, bg, dxplid);
+			if (H5Tget_class (dp->dtype) == H5T_COMPOUND) bg = malloc (db.size * dp->esize);
+
+			err = H5Tconvert (mem_type_id, dp->dtype, db.size, db.xbuf, bg, plist_id);
 			free (bg);
 		}
 		H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_WRITE_CONVERT);
 	}
 
-	H5VL_LOGI_PROFILING_TIMER_START;
 	// Convert request size to number of bytes to be used by later routines
-	r.rsize *= dp->esize;
+	db.size *= dp->esize;
+
+	// Filtering
+	H5VL_LOGI_PROFILING_TIMER_START;
+	if (dp->filters.size ()) {
+		char *buf = NULL;
+		int csize = 0;
+
+		err = H5VL_logi_filter (dp->filters, db.xbuf, db.size, (void **)&buf, &csize);
+		CHECK_ERR
+
+		if (db.xbuf != db.ubuf) {
+			err = H5VL_log_filei_bfree (dp->fp, &(db.xbuf));
+			CHECK_ERR
+		}
+
+		db.xbuf = buf;
+		db.size = csize;
+	}
+	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_WRITE_FILTER);
+
+	H5VL_LOGI_PROFILING_TIMER_START;
 
 	// Put request in queue
-	dp->fp->wreqs.push_back (r);
+	if (dp->fp->config & H5VL_FILEI_CONFIG_METADATA_MERGE) {
+		err = dp->fp->mreqs[dp->id]->append (dp, db, dsel);
+		CHECK_ERR
+	} else {
+		r->rsize = db.size;
+		r->dbufs.push_back (db);
+		dp->fp->wreqs.push_back (r);
+	}
 	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_WRITE_FINALIZE);
 
 	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_WRITE);
 err_out:;
-	if (err) {
-		// if (r.xbuf != r.ubuf) H5VL_log_filei_bfree (dp->fp, r.xbuf);
-	}
 	H5VL_log_type_free (ptype);
 
 	return err;
-}
-*/
+} /* end H5VL_log_dataseti_write() */
+
+/*-------------------------------------------------------------------------
+ * Function:    H5VL_log_dataseti_read
+ *
+ * Purpose:     Reads data elements from a dataset into a buffer.
+ *
+ * Return:      Success:    0
+ *              Failure:    -1
+ *
+ *-------------------------------------------------------------------------
+ */
+herr_t H5VL_log_dataseti_read (H5VL_log_dset_t *dp,
+							   hid_t mem_type_id,
+							   hid_t mem_space_id,
+							   H5VL_log_selections *dsel,
+							   hid_t plist_id,
+							   void *buf,
+							   void **req) {
+	herr_t err = 0;
+	int i, j;
+	int n;
+	size_t esize;
+	htri_t eqtype;
+	char *bufp = (char *)buf;
+	H5VL_log_rreq_t r;
+	H5S_sel_type stype, mstype;
+	H5VL_log_req_type_t rtype;
+	H5VL_log_dio_n_arg_t arg;
+	H5VL_log_req_t *rp;
+	void **ureqp, *ureq;
+	H5VL_LOGI_PROFILING_TIMER_START;
+
+	H5VL_LOGI_PROFILING_TIMER_START;
+	// Sanity check
+	if (stype == H5S_SEL_NONE) goto err_out;
+	if (!buf) ERR_OUT ("user buffer can't be NULL");
+	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_READ_INIT);
+
+	// Check mem space selection
+	if (mem_space_id == H5S_ALL)
+		mstype = H5S_SEL_ALL;
+	else if (mem_space_id == H5S_CONTIG)
+		mstype = H5S_SEL_ALL;
+	else
+		mstype = H5Sget_select_type (mem_space_id);
+
+	// Setting metadata;
+	r.info	  = &(dp->fp->dsets[dp->id]);
+	r.hdr.did = dp->id;
+	r.ndim	  = dp->ndim;
+	r.ubuf	  = (char *)buf;
+	r.ptype	  = MPI_DATATYPE_NULL;
+	r.dtype	  = -1;
+	r.mtype	  = -1;
+	r.esize	  = dp->esize;
+	r.rsize	  = 0;	// Nomber of elements in record
+	r.sels	  = dsel;
+
+	// Non-blocking?
+	err = H5Pget_nonblocking (plist_id, &rtype);
+	CHECK_ERR
+
+	// Need convert?
+	eqtype = H5Tequal (dp->dtype, mem_type_id);
+	CHECK_ID (eqtype);
+
+	// Can reuse user buffer
+	if (eqtype > 0 && mstype == H5S_SEL_ALL) {
+		r.xbuf = r.ubuf;
+	} else {  // Need internal buffer
+		// Get element size
+		esize = H5Tget_size (mem_type_id);
+		CHECK_ID (esize)
+
+		// HDF5 type conversion is in place, allocate for whatever larger
+		err = H5VL_log_filei_balloc (dp->fp, r.rsize * std::max (esize, (size_t) (dp->esize)),
+									 (void **)(&(r.xbuf)));
+		CHECK_ERR
+
+		// Need packing
+		if (mstype != H5S_SEL_ALL) {
+			H5VL_LOGI_PROFILING_TIMER_START;
+			err = H5VL_log_selections (mem_space_id).get_mpi_type (esize, &(r.ptype));
+			CHECK_ERR
+			H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOGI_GET_DATASPACE_SEL_TYPE);
+		}
+
+		// Need convert
+		if (eqtype == 0) {
+			r.dtype = H5Tcopy (dp->dtype);
+			CHECK_ID (r.dtype)
+			r.mtype = H5Tcopy (mem_type_id);
+			CHECK_ID (r.mtype)
+		}
+	}
+
+	// Flush it immediately if blocking, otherwise place into queue
+	if (rtype != H5VL_LOG_REQ_NONBLOCKING) {
+		err = H5VL_log_nb_flush_read_reqs (dp->fp, std::vector<H5VL_log_rreq_t> (1, r), plist_id);
+		CHECK_ERR
+	} else {
+		dp->fp->rreqs.push_back (r);
+	}
+
+err_out:;
+	H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_READ);
+	return err;
+} /* end H5VL_log_dataseti_read() */

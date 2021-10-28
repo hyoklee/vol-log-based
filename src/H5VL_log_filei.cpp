@@ -1,11 +1,12 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-
-#include <unistd.h>
-
+// Std hdrs
 #include <array>
-
+// Sys hdrs
+#include <sys/stat.h>
+#include <unistd.h>
+// Logvol hdrs
 #include "H5VL_log.h"
 #include "H5VL_log_file.hpp"
 #include "H5VL_log_filei.hpp"
@@ -67,13 +68,6 @@ herr_t H5VL_log_filei_parse_fapl (H5VL_log_file_t *fp, hid_t faplid) {
 	err = H5Pget_meta_merge (faplid, &ret);
 	CHECK_ERR
 	if (ret) { fp->config |= H5VL_FILEI_CONFIG_METADATA_MERGE; }
-	err = H5Pget_meta_zip (faplid, &ret);
-	CHECK_ERR
-	if (ret) { fp->config |= H5VL_FILEI_CONFIG_SEL_DEFLATE; }
-	err = H5Pget_sel_encoding (faplid, &encoding);
-	CHECK_ERR
-	if (ret) { fp->config |= H5VL_FILEI_CONFIG_SEL_ENCODE; }
-
 	env = getenv ("H5VL_LOG_METADATA_MERGE");
 	if (env) {
 		if (strcmp (env, "1") == 0) {
@@ -82,6 +76,22 @@ herr_t H5VL_log_filei_parse_fapl (H5VL_log_file_t *fp, hid_t faplid) {
 			fp->config &= ~H5VL_FILEI_CONFIG_METADATA_MERGE;
 		}
 	}
+
+	err = H5Pget_meta_share (faplid, &ret);
+	CHECK_ERR
+	if (ret) { fp->config |= H5VL_FILEI_CONFIG_METADATA_SHARE; }
+	env = getenv ("H5VL_LOG_METADATA_SHARE");
+	if (env) {
+		if (strcmp (env, "1") == 0) {
+			fp->config |= H5VL_FILEI_CONFIG_METADATA_SHARE;
+		} else {
+			fp->config &= ~H5VL_FILEI_CONFIG_METADATA_SHARE;
+		}
+	}
+
+	err = H5Pget_meta_zip (faplid, &ret);
+	CHECK_ERR
+	if (ret) { fp->config |= H5VL_FILEI_CONFIG_SEL_DEFLATE; }
 	env = getenv ("H5VL_LOG_METADATA_ZIP");
 	if (env) {
 		if (strcmp (env, "1") == 0) {
@@ -90,6 +100,10 @@ herr_t H5VL_log_filei_parse_fapl (H5VL_log_file_t *fp, hid_t faplid) {
 			fp->config &= ~H5VL_FILEI_CONFIG_SEL_DEFLATE;
 		}
 	}
+
+	err = H5Pget_sel_encoding (faplid, &encoding);
+	CHECK_ERR
+	if (encoding == H5VL_LOG_ENCODING_OFFSET) { fp->config |= H5VL_FILEI_CONFIG_SEL_ENCODE; }
 	env = getenv ("H5VL_LOG_SEL_ENCODING");
 	if (env) {
 		if (strcmp (env, "canonical") == 0) {
@@ -99,6 +113,11 @@ herr_t H5VL_log_filei_parse_fapl (H5VL_log_file_t *fp, hid_t faplid) {
 		}
 	}
 
+	err = H5Pget_idx_buffer_size (faplid, &(fp->mbuf_size));
+	CHECK_ERR
+	env = getenv ("H5VL_LOG_IDX_BSIZE");
+	if (env) { fp->mbuf_size = (MPI_Offset) (atoll (env)); }
+
 err_out:;
 	return err;
 }
@@ -107,6 +126,7 @@ herr_t H5VL_log_filei_parse_fcpl (H5VL_log_file_t *fp, hid_t fcplid) {
 	herr_t err = 0;
 	hbool_t ret;
 	H5VL_log_data_layout_t layout;
+	hbool_t subfiling;
 	char *env;
 
 	err = H5Pget_data_layout (fcplid, &layout);
@@ -115,6 +135,10 @@ herr_t H5VL_log_filei_parse_fcpl (H5VL_log_file_t *fp, hid_t fcplid) {
 		fp->config |= H5VL_FILEI_CONFIG_DATA_ALIGN;
 	}
 
+	err = H5Pget_subfiling (fcplid, &subfiling);
+	CHECK_ERR
+	if (subfiling == true) { fp->config |= H5VL_FILEI_CONFIG_SUBFILING; }
+
 	env = getenv ("H5VL_LOG_DATA_LAYOUT");
 	if (env) {
 		if (strcmp (env, "align") == 0) {
@@ -122,6 +146,24 @@ herr_t H5VL_log_filei_parse_fcpl (H5VL_log_file_t *fp, hid_t fcplid) {
 
 		} else {
 			fp->config |= H5VL_FILEI_CONFIG_DATA_ALIGN;
+		}
+	}
+
+	env = getenv ("H5VL_LOG_SUBFILING");
+	if (env) {
+		if (strcmp (env, "1") == 0) {
+			fp->config |= H5VL_FILEI_CONFIG_SUBFILING;
+		} else {
+			fp->config &= ~H5VL_FILEI_CONFIG_SUBFILING;
+		}
+	}
+
+	if (fp->config & H5VL_FILEI_CONFIG_SUBFILING) {
+		env = getenv ("H5VL_LOG_N_SUBFILE");
+		if (env) {
+			fp->ngroup = atoi (env);
+		} else {
+			fp->ngroup = 0;
 		}
 	}
 
@@ -340,10 +382,31 @@ err_out:;
 	return err;
 }
 
+static inline void print_info (MPI_Info *info_used) {
+	int i, nkeys;
+
+	if (*info_used == MPI_INFO_NULL) {
+		printf ("MPI File Info is NULL\n");
+		return;
+	}
+	MPI_Info_get_nkeys (*info_used, &nkeys);
+	printf ("MPI File Info: nkeys = %d\n", nkeys);
+	for (i = 0; i < nkeys; i++) {
+		char key[MPI_MAX_INFO_KEY], value[MPI_MAX_INFO_VAL];
+		int valuelen, flag;
+
+		MPI_Info_get_nthkey (*info_used, i, key);
+		MPI_Info_get_valuelen (*info_used, key, &valuelen, &flag);
+		MPI_Info_get (*info_used, key, valuelen + 1, value, &flag);
+		printf ("MPI File Info: [%2d] key = %25s, value = %s\n", i, key, value);
+	}
+	printf ("-----------------------------------------------------------\n");
+}
+
 herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 	herr_t err = 0;
 	int mpierr;
-	int attbuf[3];
+	int attbuf[4];
 
 	H5VL_LOGI_PROFILING_TIMER_START;
 
@@ -363,6 +426,20 @@ herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 	}
 #endif
 
+	{
+		double t1, t2;
+
+		MPI_Barrier (MPI_COMM_WORLD);
+		t1	= MPI_Wtime ();
+		err = H5VL_log_filei_flush (fp, fp->dxplid);
+		CHECK_ERR
+		t2 = MPI_Wtime ();
+
+		if (fp->rank == 0) {
+			printf ("Flush before metadata flush: %lf\n", t2 - t1);
+			fflush (stdout);
+		}
+	}
 	if (fp->flag != H5F_ACC_RDONLY) {
 		// Flush write requests
 		if (fp->wreqs.size () > fp->nflushed) {
@@ -382,6 +459,7 @@ herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 		attbuf[0] = fp->ndset;
 		attbuf[1] = fp->nldset;
 		attbuf[2] = fp->nmdset;
+		attbuf[3] = fp->config;
 		err		  = H5VL_logi_put_att (fp, "_int_att", H5T_NATIVE_INT32, attbuf, fp->dxplid);
 		CHECK_ERR
 	}
@@ -391,6 +469,20 @@ herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 	err = H5VLgroup_close (fp->lgp, fp->uvlid, fp->dxplid, NULL);
 	CHECK_ERR
 	H5VL_LOGI_PROFILING_TIMER_STOP (fp, TIMER_H5VLGROUP_CLOSE);
+
+#ifdef LOGVOL_PROFILING
+	{
+		MPI_Info info;
+		char *_env_str = getenv ("H5VL_LOG_PRINT_MPI_INFO");
+		if (_env_str != NULL && *_env_str != '0') {
+			if (fp->rank == 0) {
+				MPI_File_get_info (fp->fh, &info);
+				print_info (&info);
+				MPI_Info_free (&info);
+			}
+		}
+	}
+#endif
 
 	// Close the file with MPI
 	mpierr = MPI_File_close (&(fp->fh));
@@ -406,14 +498,32 @@ herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 	H5VL_log_dataspace_contig_ref--;
 	if (H5VL_log_dataspace_contig_ref == 0) { H5Sclose (H5VL_log_dataspace_contig); }
 
+	{
+		double t1, t2;
+
+		MPI_Barrier (MPI_COMM_WORLD);
+		t1	= MPI_Wtime ();
+		err = H5VL_log_filei_flush (fp, fp->dxplid);
+		CHECK_ERR
+		t2 = MPI_Wtime ();
+
+		if (fp->rank == 0) {
+			printf ("Flush before file close: %lf\n", t2 - t1);
+			fflush (stdout);
+		}
+	}
 	// Close the file with under VOL
 	H5VL_LOGI_PROFILING_TIMER_START;
 	err = H5VLfile_close (fp->uo, fp->uvlid, H5P_DATASET_XFER_DEFAULT, NULL);
 	CHECK_ERR
+	if (fp->sfp) {
+		err = H5VLfile_close (fp->sfp, fp->uvlid, H5P_DATASET_XFER_DEFAULT, NULL);
+		CHECK_ERR
+	}
 	H5VL_LOGI_PROFILING_TIMER_STOP (fp, TIMER_H5VLFILE_CLOSE);
 
 	H5VL_LOGI_PROFILING_TIMER_STOP (fp, TIMER_H5VL_LOG_FILE_CLOSE);
-	
+
 #ifdef LOGVOL_PROFILING
 	{
 		char *_env_str = getenv ("H5VL_LOG_SHOW_PROFILING_INFO");
@@ -422,7 +532,9 @@ herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 #endif
 
 	// Clean up
+	if (fp->group_comm != fp->comm) { MPI_Comm_free (&(fp->group_comm)); }
 	MPI_Comm_free (&(fp->comm));
+
 	delete fp;
 
 err_out:
@@ -454,63 +566,102 @@ err_out:
 	return err;
 }
 
+herr_t H5VL_log_filei_create_subfile (H5VL_log_file_t *fp,
+									  unsigned flags,
+									  hid_t fapl_id,
+									  hid_t dxpl_id) {
+	herr_t err = 0;
+	int stat;
+
+	// Create subfile dir
+	if (fp->rank == 0) {
+		stat = mkdir ((fp->name + ".subfiles").c_str (), S_IRWXU);
+		// Skip creation if already exist
+		if (stat == -1 && errno == EEXIST) stat = 0;
+	}
+	MPI_Bcast (&stat, 1, MPI_INT, 0, fp->comm);
+	if (stat != 0) { RET_ERR ("Cannot create subfile dir") }
+
+	// Create the subfiles with underlying VOL
+	err = H5Pset_fapl_mpio (fapl_id, fp->group_comm, MPI_INFO_NULL);
+	CHECK_ERR
+	H5VL_LOGI_PROFILING_TIMER_START;
+	fp->subname = fp->name + ".subfiles/" + std::to_string (fp->group_id) + ".h5";
+	fp->sfp		= H5VLfile_create (fp->subname.c_str (), flags, H5P_FILE_CREATE_DEFAULT, fapl_id,
+							   dxpl_id, NULL);
+	CHECK_PTR (fp->sfp)
+	H5VL_LOGI_PROFILING_TIMER_STOP (fp, TIMER_H5VLFILE_CREATE);
+
+err_out:;
+	return err;
+}
+
 herr_t H5VL_log_filei_calc_node_rank (H5VL_log_file_t *fp) {
 	herr_t err = 0;
 	int mpierr;
 	int i, j;
-	MPI_Info info = MPI_INFO_NULL;
-	int np;
-	int *noderanks;
+	MPI_Info info	 = MPI_INFO_NULL;
+	int *group_ranks = NULL;
 
-	mpierr = MPI_Comm_size (fp->comm, &np);
+	group_ranks = (int *)malloc (sizeof (int) * fp->np);
+	CHECK_PTR (group_ranks);
 
-	noderanks = (int *)malloc (sizeof (int) * np);
-	CHECK_PTR (noderanks);
-
-	mpierr =
-		MPI_Comm_split_type (fp->comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &(fp->nodecomm));
-	mpierr = MPI_Comm_rank (fp->nodecomm, &(fp->noderank));
-
-	mpierr = MPI_Allgather (&(fp->noderank), 1, MPI_INT, noderanks, 1, MPI_INT, fp->comm);
-	CHECK_MPIERR
-
-	fp->nodeid = 0;
-	for (i = 0; i < fp->rank; i++) {
-		if (noderanks[i] == 0) { fp->nodeid++; }
+	if (fp->ngroup > 0) {
+		mpierr =
+			MPI_Comm_split (fp->comm, fp->rank * fp->ngroup / fp->np, fp->rank, &(fp->group_comm));
+	} else {
+		mpierr = MPI_Comm_split_type (fp->comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
+									  &(fp->group_comm));
 	}
+	CHECK_ERR
 
-	mpierr = MPI_Bcast (&(fp->nodeid), 1, MPI_INT, 0, fp->nodecomm);
+	mpierr = MPI_Comm_rank (fp->group_comm, &(fp->group_rank));
+	CHECK_MPIERR
+	mpierr = MPI_Comm_size (fp->group_comm, &(fp->group_np));
 	CHECK_MPIERR
 
-	// What ost it should write to
-	fp->target_ost = fp->nodeid % fp->scount;
+	mpierr = MPI_Allgather (&(fp->group_rank), 1, MPI_INT, group_ranks, 1, MPI_INT, fp->comm);
+	CHECK_MPIERR
+	// Assign group ID based ont he global rank of group rank 0
+	fp->group_id = 0;
+	for (i = 0; i < fp->rank; i++) {
+		if (group_ranks[i] == 0) { fp->group_id++; }
+	}
+	mpierr = MPI_Bcast (&(fp->group_id), 1, MPI_INT, 0, fp->group_comm);
+	CHECK_MPIERR
 
-	// Find previous node sharing the ost
-	fp->prev_rank = -1;
-	fp->next_rank = -1;
-	j			  = fp->scount;
-	for (i = fp->rank - 1; i > -1; i--) {
-		if (noderanks[i] == 0) {
-			j--;
-			if (j == 0) {
-				fp->prev_rank = i;
-				break;
+	if (fp->config & H5VL_FILEI_CONFIG_DATA_ALIGN) {
+		// What ost it should write to
+		fp->target_ost = fp->group_id % fp->scount;
+
+		// Find previous and next node sharing the ost
+		fp->prev_rank = -1;
+		fp->next_rank = -1;
+		j			  = fp->scount;
+		for (i = fp->rank - 1; i > -1; i--) {
+			if (group_ranks[i] == 0) {
+				j--;
+				if (j == 0) {
+					fp->prev_rank = i;
+					break;
+				}
 			}
 		}
-	}
-	j = fp->scount;
-	for (i = fp->rank + 1; i < np; i++) {
-		if (noderanks[i] == 0) {
-			j--;
-			if (j == 0) {
-				fp->next_rank = i;
-				break;
+		j = fp->scount;
+		for (i = fp->rank + 1; i < fp->np; i++) {
+			if (group_ranks[i] == 0) {
+				j--;
+				if (j == 0) {
+					fp->next_rank = i;
+					break;
+				}
 			}
 		}
 	}
 
 err_out:
 	if (info != MPI_INFO_NULL) MPI_Info_free (&info);
+	H5VL_log_free (group_ranks);
 	return err;
 }
 
@@ -570,6 +721,7 @@ void *H5VL_log_filei_wrap (void *uo, H5VL_log_obj_t *cp) {
 	*/
 
 	fp = cp->fp;
+	// fp->refcnt++;
 
 	H5VL_LOGI_PROFILING_TIMER_STOP (fp, TIMER_H5VL_LOG_FILE_OPEN);
 

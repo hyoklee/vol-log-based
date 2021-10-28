@@ -1,4 +1,11 @@
 define(`H5VL_LOG_TIMERS', `( `H5VL_log_file_create', dnl
+                            `H5VL_log_file_create_init', dnl
+                            `H5VL_log_file_create_file', dnl
+                            `H5VL_log_file_create_group', dnl
+                            `H5VL_log_file_create_fh', dnl
+                            `H5VL_log_file_create_stripe', dnl
+                            `H5VL_log_file_create_group_rank', dnl
+                            `H5VL_log_file_create_subfile', dnl
                             `H5VL_log_file_open', dnl
                             `H5VL_log_file_get', dnl
                             `H5VL_log_file_specific', dnl
@@ -21,6 +28,7 @@ define(`H5VL_LOG_TIMERS', `( `H5VL_log_file_create', dnl
                             `H5VL_log_dataset_create', dnl
                             `H5VL_log_dataset_open', dnl
                             `H5VL_log_dataset_read', dnl
+                            `H5VL_log_dataset_read_init', dnl
                             `H5VL_log_dataset_write', dnl
                             `H5VL_log_dataset_write_init', dnl
                             `H5VL_log_dataset_write_start_count', dnl
@@ -65,6 +73,7 @@ define(`H5VL_LOG_TIMERS', `( `H5VL_log_file_create', dnl
                             `H5VL_log_filei_flush', dnl
                             `H5VL_log_filei_metaflush', dnl
                             `H5VL_log_filei_metaflush_init', dnl
+                            `H5VL_log_filei_metaflush_hash', dnl
                             `H5VL_log_filei_metaflush_pack', dnl
                             `H5VL_log_filei_metaflush_zip', dnl
                             `H5VL_log_filei_metaflush_sync', dnl
@@ -74,7 +83,9 @@ define(`H5VL_LOG_TIMERS', `( `H5VL_log_file_create', dnl
                             `H5VL_log_filei_metaflush_barrier', dnl
                             `H5VL_log_filei_metaflush_finalize', dnl
                             `H5VL_log_filei_metaflush_size', dnl
+                            `H5VL_log_filei_metaflush_size_dedup', dnl
                             `H5VL_log_filei_metaflush_size_zip', dnl
+                            `H5VL_log_filei_metaflush_repeat_count', dnl
                             `H5VL_log_filei_metaupdate', dnl
                             `H5VL_log_dataseti_readi_gen_rtypes', dnl
                             `H5VL_log_dataseti_open_with_uo', dnl
@@ -87,6 +98,7 @@ define(`H5VL_LOG_TIMERS', `( `H5VL_log_file_create', dnl
                             `H5VL_log_nb_flush_write_reqs_sync', dnl
                             `H5VL_log_nb_flush_write_reqs_create', dnl
                             `H5VL_log_nb_flush_write_reqs_wr', dnl
+                            `H5VL_log_nb_flush_write_reqs_create_virtual', dnl
                             `H5VL_log_nb_write_reqs_aligned', dnl
                             `H5VL_log_nb_flush_write_reqs_size', dnl
 )')`'dnl

@@ -1,9 +1,9 @@
-## Log-based VOL - an HDF5 VOL connector that stores HDF5 datasets in a log-based storage layout
+## Log-based VOL - an HDF5 VOL Plugin that stores HDF5 datasets in a log-based storage layout
 
 This software repository contains source codes implementing an [HDF5](https://www.hdfgroup.org) Virtual Object Layer ([VOL](https://bitbucket.hdfgroup.org/projects/HDFFV/repos/hdf5doc/browse/RFCs/HDF5/VOL/developer_guide/main.pdf))) plugin that stores HDF5 datasets in a log-based storage layout. It allows applications to generate efficient log-based I/O requests using HDF5 APIs.
 
 ### Software Requirements
-* [HDF5 1.12.0](https://hdf-wordpress-1.s3.amazonaws.com/wp-content/uploads/manual/HDF5/HDF5_1_12_0/source/hdf5-1.12.0.tar.gz)
+* [HDF5 1.12.0](https://github.com/HDFGroup/hdf5/tree/1.12/master)
   + Parallel I/O support (--enable-parallel) is required
 * MPI C and C++ compilers
   + The plugin uses the constant initializer; a C++ compiler supporting std 11 is required
@@ -15,16 +15,16 @@ This software repository contains source codes implementing an [HDF5](https://ww
 
 ### Building Steps
 * Build HDF5 with VOL and parallel I/O support
-  + Download HDF5 source code
+  + Clone the develop branch from the HDF5 repository
   + Run command ./autogen.sh
   + Configure HDF5 with parallel I/O enabled
   + Run make install
   + Example commands are given below. This example will install
     the HD5 library under the folder `${HOME}/HDF5`.
     ```
-    % wget https://hdf-wordpress-1.s3.amazonaws.com/wp-content/uploads/manual/HDF5/HDF5_1_12_0/source/hdf5-1.12.0.tar.gz
-    % tar -zxf hdf5-1.12.0.tar.gz 
-    % cd hdf5-1.12.0
+    % git clone https://github.com/HDFGroup/hdf5.git
+    % cd hdf5
+    % git checkout hdf5-1_12_0
     % ./autogen
     % ./configure --prefix=${HOME}/HDF5 --enable-parallel CC=mpicc
     % make -j4 install
@@ -35,34 +35,15 @@ This software repository contains source codes implementing an [HDF5](https://ww
   + Configure log-based VOL 
     + Shared library is required to enable log-based VOL by environment variables
     + Compile with zlib library to enable metadata compression
-  + Run test programs (make check) to check whether the VOl is working properly
   + Example commands are given below.
     ```
     % git clone https://github.com/DataLib-ECP/vol-log-based.git
-    % cd log_io_vol
+    % cd vol-log-based
     % autoreconf -i
     % ./configure --prefix=${HOME}/Log_IO_VOL --with-hdf5=${HOME}/HDF5 --enable-shared --enable-zlib
-    % make -j 4
-    % make check
-    % make install
+    % make -j 4 install
     ```
     The VOL plugin library is now installed under the folder `${HOME}/Log_IO_VOL.`
-
-### Running example programs
-* Build the log-based VOL
-* Compile the example programs under the example directory
-  + Run `make <program name>` to compile an example program
-  + Running `make tests` will compile all example programs
-* Run the example programs
-  + Run `make check` to run all example programs as test programs
-* Example commands are given below. This example will install
-    the HD5 library under the folder `${HOME}/HDF5`.
-    ```
-    % cd example
-    % make create_open
-    % ./create_open
-    Writing file_name = test.h5 at rank 0 
-    ```
 
 ### Compile user programs that use this VOL plugin
 * Enable log-based VOL programmatically
@@ -124,9 +105,5 @@ This software repository contains source codes implementing an [HDF5](https://ww
 * [HDF5 VOL plug-in developer manual](https://bitbucket.hdfgroup.org/projects/HDFFV/repos/hdf5doc/browse/RFCs/HDF5/VOL/user_guide)
 * [HDF5 VOL RFC](https://bitbucket.hdfgroup.org/projects/HDFFV/repos/hdf5doc/browse/RFCs/HDF5/VOL/RFC)
 
-### Developers
-* Kai-yuan Hou <kai-yuanhou2020@u.northwestern.edu>
-* Wei-keng Liao <wkliao@northwestern.edu>
-
 ### Project funding supports:
-This research was supported by the Exascale Computing Project (17-SC-20-SC), a joint project of the U.S. Department of Energy’s Office of Science and National Nuclear Security Administration, responsible for delivering a capable exascale ecosystem, including software, applications, and hardware technology, to support the nation’s exascale computing imperative. 
+Ongoing development and maintenance of Log-based VOL are supported by the Exascale Computing Project (17-SC-20-SC), a joint project of the U.S. Department of Energy's Office of Science and National Nuclear Security Administration, responsible for delivering a capable exascale ecosystem, including software, applications, and hardware technology, to support the nation's exascale computing imperative.

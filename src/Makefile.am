@@ -4,7 +4,7 @@
 #
 # @configure_input@
 
-SUFFIXES = .cpp .hpp .o .m4 .m4h
+SUFFIXES = .cpp .hpp .o
 
 AM_CPPFLAGS = -I.
 if LOGVOL_DEBUG
@@ -17,14 +17,9 @@ M4FLAGS = -I${top_srcdir}/m4
 
 lib_LTLIBRARIES = libH5VL_log.la
 
-M4_SRCS =  
-            
-M4H_SRCS =  
+M4_SRCS = 
 
-if LOGVOL_PROFILING
-   M4_SRCS +=  H5VL_logi_profiling.m4 
-   M4H_SRCS += H5VL_logi_profiling.m4h
-endif
+M4H_SRCS = 
 
 H_SRCS =    H5VL_log.h \
             H5VL_log_internal.h
@@ -56,35 +51,38 @@ CXX_SRCS =  H5VL_log_att.cpp \
             H5VL_logi_filter.cpp \
             H5VL_logi_filter_deflate.cpp \
             H5VL_logi_idx.cpp \
+            H5VL_logi_idx_list.cpp \
             H5VL_logi_mem.cpp \
+            H5VL_logi_meta.cpp \
             H5VL_logi_nb.cpp \
             H5VL_logi_util.cpp \
             H5VL_logi_wrapper.cpp \
             H5VL_logi_zip.cpp
-
+            
 if LOGVOL_DEBUG
    CXX_SRCS += H5VL_logi_debug.cpp
+endif
+if LOGVOL_PROFILING
+   M4_SRCS += H5VL_logi_profiling.m4
 endif
 
 include_HEADERS = H5VL_log.h
 
-$(M4_SRCS:.m4=.cpp): Makefile
-$(M4H_SRCS:.m4=.hpp): Makefile
+$(M4_SRCS:.m4=.cpp): Makefile H5VL_logi_profiling_timers.m4
+$(M4H_SRCS:.m4h=.hpp): Makefile H5VL_logi_profiling_timers.m4
 
-.m4.cpp:
+.m4.cpp: H5VL_logi_profiling_timers.m4
 	$(M4) $(AM_M4FLAGS) $(M4FLAGS) $< >$@
 
-.m4h.hpp:
+.m4h.hpp: H5VL_logi_profiling_timers.m4
 	$(M4) $(AM_M4FLAGS) $(M4FLAGS) $< >$@
 
 libH5VL_log_la_SOURCES = $(C_SRCS) $(CXX_SRCS) $(H_SRCS)
 nodist_libH5VL_log_la_SOURCES = $(M4_SRCS:.m4=.cpp) $(M4H_SRCS:.m4h=.h)
 
 BUILT_SOURCES = $(M4_SRCS:.m4=.cpp) $(M4H_SRCS:.m4h=.hpp)
-
-CLEANFILES = $(M4_SRCS:.m4=.cpp) $(M4H_SRCS:.m4h=.hpp) core core.* *.gcda *.gcno *.gcov gmon.out
-
-EXTRA_DIST = $(M4_HFILES) $(M4_SRCS) $(M4H_SRCS)
+EXTRA_DIST = $(M4H_SRCS) $(M4_SRCS)
+CLEANFILES = $(M4_SRCS:.m4=.cpp) $(M4H_SRCS:.m4h=.hpp)
 
 dist-hook:
 	$(SED_I) -e "s|RELEASE_DATE|@LOGVOL_RELEASE_DATE@|g" $(distdir)/main.cpp
