@@ -62,3 +62,9 @@ jobs:
           cd $mydir
           cd test
           make check
+
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: git.txt
+          path: ${{ runner.workspace }}/vol-log-based/test/basic/test-suite.log
