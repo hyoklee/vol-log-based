@@ -255,9 +255,9 @@ herr_t H5VL_log_dataset_readi_gen_rtypes (std::vector<H5VL_log_idx_search_ret_t>
 		}
 	}
 
-	mpierr = MPI_Type_struct (nt, lens, foffs, ftypes, ftype);
+	mpierr = MPI_Type_create_struct(nt, lens, foffs, ftypes, ftype);
 	CHECK_MPIERR
-	mpierr = MPI_Type_struct (nt, lens, moffs, mtypes, mtype);
+	mpierr = MPI_Type_create_struct(nt, lens, moffs, mtypes, mtype);
 	CHECK_MPIERR
 
 err_out:
