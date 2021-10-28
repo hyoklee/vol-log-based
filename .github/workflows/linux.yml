@@ -21,7 +21,7 @@ jobs:
       - name: Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install libtool
+          sudo apt-get install ninja-build automake autoconf libtool libtool-bin
           # hdf5
           git clone https://github.com/HDFGroup/hdf5.git
           # mpi
@@ -45,6 +45,7 @@ jobs:
           
           # Compile VOL connector
           cd $VOL_DIR/src
+          autoreconf -i
           ./configure --with-hdf5=${HDF5_DIR} --enable-shared --enable-zlib
           make
           
