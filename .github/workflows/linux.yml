@@ -45,7 +45,7 @@ jobs:
           
           # Compile VOL connector
           cd $VOL_DIR
-          autoreconf -i
+          autoreconf -fvi
           ./configure --with-hdf5=${HDF5_DIR} --enable-shared --enable-zlib
           make
           
