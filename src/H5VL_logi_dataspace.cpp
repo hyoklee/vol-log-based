@@ -559,8 +559,4 @@ void H5VL_log_selections::encode (MPI_Offset *dsteps, char *mbuf) {
 			}
 		}
 	}
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 81070b201180f08a1105c8325b0899e5ba28ca9d
