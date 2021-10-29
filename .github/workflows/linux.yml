@@ -1,4 +1,4 @@
-name: linux 
+name: Linux HDF5 develop
 
 on:
   pull_request:
@@ -37,8 +37,8 @@ jobs:
           cd hdf5
           export HDF5_LIBTOOL=/usr/bin/libtoolize
           ./autogen.sh
-          ./configure --prefix=$HDF5_DIR --enable-parallel
-          make && make install
+          ./configure --prefix=$HDF5_DIR --enable-parallel CC=mpicc
+          make -j2 && make -j2 install
 
       - name: Install
         run: |          
