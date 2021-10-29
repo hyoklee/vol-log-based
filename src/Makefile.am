@@ -6,7 +6,7 @@
 
 SUFFIXES = .cpp .hpp .o
 
-AM_CPPFLAGS = -I$(top_srcdir)/src -I$(srcdir) -I./
+AM_CPPFLAGS = -I.
 if LOGVOL_DEBUG
    AM_CPPFLAGS += -DLOGVOL_DEBUG=1
 endif
