@@ -81,6 +81,7 @@ herr_t h5replay_read_data (MPI_File fin,
 		moffs.push_back (idx.moff);
 		lens.push_back (idx.len);
 	}
+
 	mpierr = MPI_Type_create_hindexed (foffs.size (), lens.data (), foffs.data (), MPI_BYTE, &ftype);
 	CHECK_MPIERR
 	mpierr = MPI_Type_create_hindexed (moffs.size (), lens.data (), moffs.data (), MPI_BYTE, &mtype);

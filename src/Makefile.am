@@ -58,7 +58,7 @@ CXX_SRCS =  H5VL_log_att.cpp \
             H5VL_logi_util.cpp \
             H5VL_logi_wrapper.cpp \
             H5VL_logi_zip.cpp
-
+            
 if LOGVOL_DEBUG
    CXX_SRCS += H5VL_logi_debug.cpp
 endif

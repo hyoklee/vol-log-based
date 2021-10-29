@@ -894,4 +894,8 @@ H5VL_log_rreq_t::~H5VL_log_rreq_t () {
 		delete sels;
 		sels = NULL;
 	}
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 81070b201180f08a1105c8325b0899e5ba28ca9d
