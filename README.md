@@ -1,6 +1,9 @@
+[![Linux HDF5 develop](https://github.com/hyoklee/vol-log-based/actions/workflows/linux.yml/badge.svg)](https://github.com/hyoklee/vol-log-based/actions/workflows/linux.yml)
+[![Linux HDF5 1.12.1](https://github.com/hyoklee/vol-log-based/actions/workflows/linux_1.12.yml/badge.svg)](https://github.com/hyoklee/vol-log-based/actions/workflows/linux_1.12.yml)
+
 ## Log-based VOL - an HDF5 VOL Plugin that stores HDF5 datasets in a log-based storage layout
 
-This software repository contains source codes implementing an [HDF5](https://www.hdfgroup.org) Virtual Object Layer ([VOL](https://bitbucket.hdfgroup.org/projects/HDFFV/repos/hdf5doc/browse/RFCs/HDF5/VOL/developer_guide/main.pdf))) plugin that stores HDF5 datasets in a log-based storage layout. It allows applications to generate efficient log-based I/O requests using HDF5 APIs.
+This software repository contains source codes implementing an [HDF5](https://www.hdfgroup.org) Virtual Object Layer ([VOL](https://bitbucket.hdfgroup.org/projects/HDFFV/repos/hdf5doc/browse/RFCs/HDF5/VOL/developer_guide/main.pdf)) plugin that stores HDF5 datasets in a log-based storage layout. It allows applications to generate efficient log-based I/O requests using HDF5 APIs.
 
 ### Software Requirements
 * [HDF5 1.12.0](https://github.com/HDFGroup/hdf5/tree/1.12/master)
