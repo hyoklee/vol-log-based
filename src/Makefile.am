@@ -19,10 +19,9 @@ lib_LTLIBRARIES = libH5VL_log.la
 
 M4_SRCS = 
 
-M4H_SRCS = 
+M4H_SRCS = H5VL_logi_profiling.m4h
 
-H_SRCS =    H5VL_log.h \
-            H5VL_log_internal.h
+H_SRCS =    H5VL_log.h 
 
 C_SRCS = 
 
@@ -51,8 +50,8 @@ CXX_SRCS =  H5VL_log_att.cpp \
             H5VL_logi_filter.cpp \
             H5VL_logi_filter_deflate.cpp \
             H5VL_logi_idx.cpp \
-            H5VL_logi_idx_list.cpp \
-            H5VL_logi_mem.cpp \
+	         H5VL_logi_idx_list.cpp \
+	         H5VL_logi_mem.cpp \
             H5VL_logi_meta.cpp \
             H5VL_logi_nb.cpp \
             H5VL_logi_util.cpp \
@@ -63,6 +62,7 @@ if LOGVOL_DEBUG
    CXX_SRCS += H5VL_logi_debug.cpp
 endif
 if LOGVOL_PROFILING
+   M4_SRCS += H5VL_logi_profiling.m4
    M4_SRCS += H5VL_logi_profiling.m4
 endif
 
@@ -85,8 +85,8 @@ EXTRA_DIST = $(M4H_SRCS) $(M4_SRCS)
 CLEANFILES = $(M4_SRCS:.m4=.cpp) $(M4H_SRCS:.m4h=.hpp)
 
 dist-hook:
-	$(SED_I) -e "s|RELEASE_DATE|@LOGVOL_RELEASE_DATE@|g" $(distdir)/main.cpp
-	$(SED_I) -e "1,10s|_LOGVOL_RELEASE_DATE_|@LOGVOL_RELEASE_DATE@|" $(distdir)/RELEASE_NOTES.md
-	$(SED_I) -e "1,10s|_LOGVOL_VERSION_|$(LOGVOL_VERSION)|" $(distdir)/RELEASE_NOTES.md
+#	$(SED_I) -e "s|RELEASE_DATE|@LOGVOL_RELEASE_DATE@|g" $(distdir)/main.cpp
+#	$(SED_I) -e "1,10s|_LOGVOL_RELEASE_DATE_|@LOGVOL_RELEASE_DATE@|" $(distdir)/RELEASE_NOTES.md
+#	$(SED_I) -e "1,10s|_LOGVOL_VERSION_|$(LOGVOL_VERSION)|" $(distdir)/RELEASE_NOTES.md
 
 .PHONY:

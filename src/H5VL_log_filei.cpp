@@ -47,6 +47,41 @@ err_out:;
 	return err;
 }
 
+herr_t H5VL_log_filei_post_open (H5VL_log_file_t *fp) {
+	herr_t err = 0;
+	H5VL_loc_params_t loc;
+	int attbuf[4];
+
+	H5VL_LOGI_PROFILING_TIMER_START;
+
+	// Open the LOG group
+	loc.obj_type = H5I_FILE;
+	loc.type	 = H5VL_OBJECT_BY_SELF;
+	H5VL_LOGI_PROFILING_TIMER_START
+	fp->lgp = H5VLgroup_open (fp->uo, &loc, fp->uvlid, LOG_GROUP_NAME, H5P_GROUP_ACCESS_DEFAULT,
+							  fp->dxplid, NULL);
+	CHECK_PTR (fp->lgp)
+	H5VL_LOGI_PROFILING_TIMER_STOP (fp, TIMER_H5VLGROUP_OPEN);
+
+	// Att
+	err = H5VL_logi_get_att (fp, "_int_att", H5T_NATIVE_INT32, attbuf, fp->dxplid);
+	CHECK_ERR
+	fp->ndset  = attbuf[0];
+	fp->nldset = attbuf[1];
+	fp->nmdset = attbuf[2];
+	fp->config = attbuf[3];
+	fp->idx.resize (fp->ndset);
+	fp->mreqs.resize (fp->ndset);
+	fp->group_rank = fp->rank;
+	fp->group_comm = fp->comm;
+	fp->group_id   = 0;
+
+	H5VL_LOGI_PROFILING_TIMER_STOP (fp, TIMER_H5VL_LOG_FILE_OPEN);
+
+err_out:;
+	return err;
+}
+
 herr_t H5VL_log_filei_bfree (H5VL_log_file_t *fp, void *buf) {
 	herr_t err = 0;
 	size_t *bp;
@@ -65,6 +100,7 @@ herr_t H5VL_log_filei_parse_fapl (H5VL_log_file_t *fp, hid_t faplid) {
 	H5VL_log_sel_encoding_t encoding;
 	char *env;
 
+	/*
 	err = H5Pget_meta_merge (faplid, &ret);
 	CHECK_ERR
 	if (ret) { fp->config |= H5VL_FILEI_CONFIG_METADATA_MERGE; }
@@ -88,6 +124,7 @@ herr_t H5VL_log_filei_parse_fapl (H5VL_log_file_t *fp, hid_t faplid) {
 			fp->config &= ~H5VL_FILEI_CONFIG_METADATA_SHARE;
 		}
 	}
+	*/
 
 	err = H5Pget_meta_zip (faplid, &ret);
 	CHECK_ERR
@@ -129,6 +166,7 @@ herr_t H5VL_log_filei_parse_fcpl (H5VL_log_file_t *fp, hid_t fcplid) {
 	hbool_t subfiling;
 	char *env;
 
+	/*
 	err = H5Pget_data_layout (fcplid, &layout);
 	CHECK_ERR
 	if (layout == H5VL_LOG_DATA_LAYOUT_CHUNK_ALIGNED) {
@@ -166,6 +204,7 @@ herr_t H5VL_log_filei_parse_fcpl (H5VL_log_file_t *fp, hid_t fcplid) {
 			fp->ngroup = 0;
 		}
 	}
+	*/
 
 err_out:;
 	return err;
@@ -426,20 +465,6 @@ herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 	}
 #endif
 
-	{
-		double t1, t2;
-
-		MPI_Barrier (MPI_COMM_WORLD);
-		t1	= MPI_Wtime ();
-		err = H5VL_log_filei_flush (fp, fp->dxplid);
-		CHECK_ERR
-		t2 = MPI_Wtime ();
-
-		if (fp->rank == 0) {
-			printf ("Flush before metadata flush: %lf\n", t2 - t1);
-			fflush (stdout);
-		}
-	}
 	if (fp->flag != H5F_ACC_RDONLY) {
 		// Flush write requests
 		if (fp->wreqs.size () > fp->nflushed) {
@@ -491,27 +516,13 @@ herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 	// Close the file with posix
 	if (fp->config & H5VL_FILEI_CONFIG_DATA_ALIGN) { close (fp->fd); }
 
-	// Free the metadata buffer
-	H5VL_log_filei_contig_buffer_free (&(fp->meta_buf));
-
 	// Close contig dataspacce ID
 	H5VL_log_dataspace_contig_ref--;
 	if (H5VL_log_dataspace_contig_ref == 0) { H5Sclose (H5VL_log_dataspace_contig); }
 
-	{
-		double t1, t2;
+	// Free compression buffer
+	free(fp->zbuf);
 
-		MPI_Barrier (MPI_COMM_WORLD);
-		t1	= MPI_Wtime ();
-		err = H5VL_log_filei_flush (fp, fp->dxplid);
-		CHECK_ERR
-		t2 = MPI_Wtime ();
-
-		if (fp->rank == 0) {
-			printf ("Flush before file close: %lf\n", t2 - t1);
-			fflush (stdout);
-		}
-	}
 	// Close the file with under VOL
 	H5VL_LOGI_PROFILING_TIMER_START;
 	err = H5VLfile_close (fp->uo, fp->uvlid, H5P_DATASET_XFER_DEFAULT, NULL);
@@ -534,6 +545,7 @@ herr_t H5VL_log_filei_close (H5VL_log_file_t *fp) {
 	// Clean up
 	if (fp->group_comm != fp->comm) { MPI_Comm_free (&(fp->group_comm)); }
 	MPI_Comm_free (&(fp->comm));
+	H5Pclose(fp->dxplid);
 
 	delete fp;
 

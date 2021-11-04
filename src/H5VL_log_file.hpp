@@ -65,7 +65,7 @@ typedef struct H5VL_log_file_t : H5VL_log_obj_t {
 
 	std::vector<H5VL_log_wreq_t *> wreqs;  // Queued write reqs
 	int nflushed;  // # entry in wreqs with their data already flushed (metadata haven't)
-	std::vector<H5VL_log_rreq_t> rreqs;
+	std::vector<H5VL_log_rreq_t *> rreqs;
 
 	std::vector<H5VL_log_merged_wreq_t *> mreqs;  // Merged request for every dataset
 	std::vector<H5VL_log_dset_info_t> dsets;	  // Opened datasets
@@ -79,11 +79,14 @@ typedef struct H5VL_log_file_t : H5VL_log_obj_t {
 	std::string subname;  // Name of the target subfile
 
 	// H5VL_log_buffer_pool_t data_buf;
-	H5VL_log_contig_buffer_t meta_buf;
+	//H5VL_log_contig_buffer_t meta_buf;
 	// H5VL_log_meta_cache_t meta_cache;
 
-	// Record shared metadata
-	// std::unordered_map<H5VL_log_selections, int> meta_table;
+	// Write metadata handling
+	std::unordered_map<H5VL_log_wreq_t, H5VL_log_wreq_t*> wreq_hash;	// Hash table for deduplication
+	MPI_Offset mdsize;
+	char *zbuf; 	// Buffer for metadata compression
+	size_t zbsize;	// size of zbuf
 	// std::vector<int> meta_ref;
 
 	// std::vector<int> lut;
