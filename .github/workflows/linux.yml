@@ -46,18 +46,20 @@ jobs:
           export VOL_DIR=$mydir
           cd $VOL_DIR
           autoreconf -fvi
-          ./configure --with-hdf5=${HDF5_DIR} --enable-shared --enable-zlib
-          make
-          
+          ./configure --prefix=/usr/local --with-hdf5=${HDF5_DIR} --enable-shared --enable-zlib
+          make -j2
+          sudo make -j2 install
       - name: Test
         run: |
           mydir="$PWD"
+          ls /usr/local/lib/
           export H5_DIR=$mydir/hdf5
-          export VOL_DIR=$mydir
+          # export VOL_DIR=$mydir
           export HDF5_DIR=$mydir/hdf5/install
-          export LD_LIBRARY_PATH=$VOL_DIR/src:$H5_DIR/install/lib:$LD_LIBRARY_PATH
-          # export HDF5_PLUGIN_PATH="$VOL_DIR/src"
+          export LD_LIBRARY_PATH=/usr/local/lib:$H5_DIR/install/lib:$LD_LIBRARY_PATH
+          export HDF5_PLUGIN_PATH=/usr/local/lib
           export HDF5_VOL_CONNECTOR="LOG under_vol=0;under_info={}"
+          env     
           cd $mydir
           cd test
           make check
