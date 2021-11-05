@@ -17,7 +17,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      
+        with:
+          ref: b13778efd9e0c79135a9d7352104985408078d45       
       - name: Set up dependencies
         run: |
           sudo apt-get update
