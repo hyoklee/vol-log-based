@@ -1,3 +1,4 @@
+[![Ubuntu](https://github.com/hyoklee/vol-log-based/actions/workflows/ubuntu_mpich.yml/badge.svg)](https://github.com/hyoklee/vol-log-based/actions/workflows/ubuntu_mpich.yml)
 [![Linux HDF5 develop](https://github.com/hyoklee/vol-log-based/actions/workflows/linux.yml/badge.svg)](https://github.com/hyoklee/vol-log-based/actions/workflows/linux.yml)
 [![Linux HDF5 1.12.1](https://github.com/hyoklee/vol-log-based/actions/workflows/linux_1.12.yml/badge.svg)](https://github.com/hyoklee/vol-log-based/actions/workflows/linux_1.12.yml)
 
