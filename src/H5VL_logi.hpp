@@ -1,3 +1,9 @@
+/*
+ *  Copyright (C) 2022, Northwestern University and Argonne National Laboratory
+ *  See COPYRIGHT notice in top-level directory.
+ */
+/* $Id$ */
+
 #pragma once
 
 #ifdef HAVE_CONFIG_H
@@ -7,7 +13,9 @@
 #include "H5VL_logi_debug.hpp"
 #include "H5VL_logi_err.hpp"
 #include "H5VL_logi_mem.hpp"
+#ifndef REPLAY_BUILD
 #include "H5VL_logi_profiling.hpp"
+#endif
 
 // APIs
 extern const H5VL_dataset_class_t H5VL_log_dataset_g;

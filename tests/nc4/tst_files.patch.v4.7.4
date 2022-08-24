@@ -1,0 +1,34 @@
+--- tst_files.c	2022-05-13 16:21:30.833197375 -0500
++++ tst_files_logvol.c	2022-05-13 16:20:07.273196735 -0500
+@@ -85,6 +85,7 @@
+       if (nc_def_var(ncid, VAR3_NAME, NC_INT, 2, dimids, &varid)) ERR;
+       if (nc_close(ncid)) ERR;
+ 
++#if 0
+       /* Open three copies of the same file. */
+       if (nc_open(FILE_NAME, NC_WRITE, &ncid)) ERR;
+       if (nc_open(FILE_NAME, NC_WRITE, &ncid2)) ERR;
+@@ -98,6 +99,7 @@
+       if (nc_close(ncid)) ERR;
+       if (nc_close(ncid2)) ERR;
+       if (nc_close(ncid3)) ERR;
++#endif
+ 
+       /* Open and close empty file. */
+       if (nc_create(FILE_NAME, NC_NETCDF4, &ncid)) ERR;
+@@ -268,6 +270,7 @@
+    SUMMARIZE_ERR;
+ #endif /* ENABLE_CDF5 */
+ 
++#if 0
+    printf("*** testing different formats...");
+    {
+       int ncid;
+@@ -310,6 +313,7 @@
+       if (nc_close(ncid)) ERR;
+    }
+    SUMMARIZE_ERR;
++#endif
+    printf("*** testing multiple open files...");
+    {
+ #define VAR_NAME "Captain_Kirk"

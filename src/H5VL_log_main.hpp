@@ -1,11 +1,17 @@
+/*
+ *  Copyright (C) 2022, Northwestern University and Argonne National Laboratory
+ *  See COPYRIGHT notice in top-level directory.
+ */
+/* $Id$ */
+
 #pragma once
 
 #include <H5VLconnector.h>
 
 /* Characteristics of the pass-through VOL connector */
-#define H5VL_log_NAME	 "LOG"
-#define H5VL_log_VALUE	 1026 /* VOL connector ID */
-#define H5VL_log_VERSION 2
+#define H5VL_log_NAME   "LOG"
+#define H5VL_log_REGID  514 /* VOL connector ID */
+#define H5VL_log_APIVER 2   // Verion of VOL interface used by logvol
 
 /********************* */
 /* Function prototypes */

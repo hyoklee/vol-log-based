@@ -1,3 +1,9 @@
+/*
+ *  Copyright (C) 2022, Northwestern University and Argonne National Laboratory
+ *  See COPYRIGHT notice in top-level directory.
+ */
+/* $Id$ */
+
 #pragma once
 
 #include <H5VLconnector.h>
@@ -7,9 +13,9 @@
 /* The log VOL wrapper context */
 /*
 typedef struct H5VL_log_obj_t {
-	void *uctx;	  // Under context
-	hid_t uvlid;  // Under VolID
-	H5VL_log_file_t *fp;
+        void *uctx;	  // Under context
+        hid_t uvlid;  // Under VolID
+        H5VL_log_file_t *fp;
 } H5VL_log_obj_t;
 */
 
