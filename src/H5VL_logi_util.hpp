@@ -7,9 +7,21 @@
 #pragma once
 
 #include <H5VLconnector.h>
+#include <hdf5.h>
 #include <mpi.h>
 
 #include "H5VL_log_obj.hpp"
+#ifdef HDF5_GE_1133
+#define H5VL_log_under_dataset_read(uo, uvlid, mtid, msid, dsid, dxplid, buf, req) \
+    H5VLdataset_read (1, &(uo), uvlid, &(mtid), &(msid), &(dsid), dxplid, (void**)&(buf), NULL)
+#define H5VL_log_under_dataset_write(uo, uvlid, mtid, msid, dsid, dxplid, buf, req) \
+    H5VLdataset_write (1, &(uo), uvlid, &(mtid), &(msid), &(dsid), dxplid, (const void**)&(buf), NULL)
+#else
+#define H5VL_log_under_dataset_read(uo, uvlid, mtid, msid, dsid, dxplid, buf, req) \
+    H5VLdataset_read (uo, uvlid, mtid, msid, dsid, dxplid, (void*)buf, NULL)
+#define H5VL_log_under_dataset_write(uo, uvlid, mtid, msid, dsid, dxplid, buf, req) \
+    H5VLdataset_write (uo, uvlid, mtid, msid, dsid, dxplid, (void*)buf, NULL)
+#endif
 
 // Utils
 extern MPI_Datatype h5t_to_mpi_type (hid_t type_id);
@@ -37,7 +49,8 @@ extern void H5VL_logi_get_att (
 
 // Added by Zanhua: check att exists
 // extern herr_t H5VL_logi_exists_att(
-// 	void* uo, hid_t uvlid, H5I_type_t type, const char *name, hid_t dxpl_id, hbool_t *exists_ptr);
+// 	void* uo, hid_t uvlid, H5I_type_t type, const char *name, hid_t dxpl_id, hbool_t
+// *exists_ptr);
 extern hbool_t H5VL_logi_exists_att (H5VL_log_obj_t *op, const char *name, hid_t dxpl_id);
 extern hbool_t H5VL_logi_exists_link (H5VL_log_file_t *op, const char *name, hid_t dxpl_id);
 
@@ -106,10 +119,34 @@ inline char *H5VL_logi_name_remap (const char *name) {
     if (name[0] == '_') {
         ret    = (char *)malloc (n + 2);
         ret[0] = '_';
-        strncpy (ret + 1, name, n + 1);
+        memcpy (ret + 1, name, n);
+        ret[n + 1] = '\0';
     } else {
         ret = (char *)name;
     }
 
     return ret;
+}
+
+inline void H5VL_logi_reset_lib_stat (void *&stat) {
+    herr_t err = 0;
+    err        = H5VLretrieve_lib_state (&stat);
+    CHECK_ERR
+    err = H5VLstart_lib_state ();
+    CHECK_ERR
+    err = H5VLrestore_lib_state (stat);
+    CHECK_ERR
+}
+
+inline void H5VL_logi_restore_lib_stat (void *&stat) {
+    herr_t err = 0;
+    if (stat) {
+        err = H5VLfinish_lib_state ();
+        CHECK_ERR
+        err = H5VLrestore_lib_state (stat);
+        CHECK_ERR
+        err = H5VLfree_lib_state (stat);
+        CHECK_ERR
+    }
+    stat = NULL;
 }

@@ -10,21 +10,25 @@ SUFFIXES = .o .cpp
 
 AM_DEFAULT_SOURCE_EXT = .cpp
 
-AM_CPPFLAGS = -I${srcdir}
+AM_CPPFLAGS = -I${srcdir}/../common
 AM_CPPFLAGS += -I${top_srcdir}
 AM_CPPFLAGS += -I${top_srcdir}/src
 AM_CPPFLAGS += -I${top_srcdir}/tests
 AM_CPPFLAGS += -I${top_builddir}
 AM_CPPFLAGS += -I${top_builddir}/src
-LDADD = $(top_builddir)/src/libH5VL_log.la
+LDADD = $(top_builddir)/src/libH5VL_log.la ../common/libtestutils.la
+
+../common/libtestutils.la:
+	set -e; cd ../common && $(MAKE) $(MFLAGS) tests
 
 check_PROGRAMS = 
 
 if ENABLE_SHARED
-    check_PROGRAMS += dynamic 
+    check_PROGRAMS += dynamic  \
+                      test_env
 endif
 
-EXTRA_DIST = wrap_runs.sh parallel_run.sh
+EXTRA_DIST = seq_runs.sh parallel_run.sh
 
 TESTPROGRAMS = $(check_PROGRAMS)
 
@@ -34,6 +38,7 @@ TESTPROGRAMS = $(check_PROGRAMS)
 # AM_TESTS_ENVIRONMENT += export TESTSEQRUN="$(TESTSEQRUN)";
 # AM_TESTS_ENVIRONMENT += export TESTOUTDIR="$(TESTOUTDIR)";
 TESTS_ENVIRONMENT  = export SED="$(SED)";
+TESTS_ENVIRONMENT += export EGREP="$(EGREP)";
 TESTS_ENVIRONMENT += export srcdir="$(srcdir)";
 TESTS_ENVIRONMENT += export top_srcdir="$(top_srcdir)";
 TESTS_ENVIRONMENT += export top_builddir="$(top_builddir)";
@@ -48,19 +53,20 @@ H5_FILES = $(check_PROGRAMS:%=$(TESTOUTDIR)/%.h5)
 CLEANFILES = $(H5_FILES) core core.* *.gcda *.gcno *.gcov gmon.out *.h5
 
 TEST_EXTENSIONS = .sh
-LOG_COMPILER = $(srcdir)/wrap_runs.sh
+LOG_COMPILER = $(srcdir)/seq_runs.sh
 SH_LOG_COMPILER =
 
 TESTS = $(TESTPROGRAMS)
 
-# build check targets but not invoke
-tests-local: all $(check_PROGRAMS)
-
 ptest: $(check_PROGRAMS)
-	@echo "==========================================================="
+	@echo "============================================================================"
 	@echo "    $(subdir): Parallel testing on 4 MPI processes"
-	@echo "==========================================================="
+	@echo "============================================================================"
 	@$(TESTS_ENVIRONMENT) \
 	$(srcdir)/parallel_run.sh 4 || exit 1
 
-.PHONY: ptest
+# build check targets but not invoke
+tests-local: all $(check_PROGRAMS)
+
+.PHONY: ptest tests
+

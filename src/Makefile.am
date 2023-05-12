@@ -21,6 +21,10 @@ M4FLAGS = -I${top_srcdir}/m4 -I${top_srcdir}/src
 
 lib_LTLIBRARIES = libH5VL_log.la
 
+AM_LDFLAGS = $(ABIVERSIONFLAGS)
+AUTOMAKE_OPTIONS = subdir-objects
+libH5VL_log_la_LIBADD = $(LTLIBOBJS)
+
 M4_SRCS = 
 
 M4H_SRCS = H5VL_logi_profiling.m4h
@@ -52,7 +56,7 @@ H_SRCS =    H5VL_log_att.hpp \
             H5VL_logi_filter.hpp \
             H5VL_logi_filter_deflate.hpp \
             H5VL_logi_idx.hpp \
-	         H5VL_logi_mem.hpp \
+            H5VL_logi_mem.hpp \
             H5VL_logi_meta.hpp \
             H5VL_logi_nb.hpp \
             H5VL_logi_util.hpp \
@@ -89,9 +93,9 @@ CXX_SRCS =  H5VL_log_att.cpp \
             H5VL_logi_filter.cpp \
             H5VL_logi_filter_deflate.cpp \
             H5VL_logi_idx.cpp \
-	         H5VL_logi_idx_list.cpp \
+            H5VL_logi_idx_list.cpp \
             H5VL_logi_idx_compact.cpp \
-	         H5VL_logi_mem.cpp \
+            H5VL_logi_mem.cpp \
             H5VL_logi_meta.cpp \
             H5VL_logi_nb.cpp \
             H5VL_logi_util.cpp \
@@ -107,13 +111,13 @@ endif
 
 nodist_include_HEADERS = H5VL_log.h
 
-$(M4_SRCS:.m4=.cpp): Makefile H5VL_logi_profiling_timers.m4
-$(M4H_SRCS:.m4h=.hpp): Makefile H5VL_logi_profiling_timers.m4
+$(M4_SRCS:.m4=.cpp): Makefile 
+$(M4H_SRCS:.m4h=.hpp): Makefile 
 
-.m4.cpp: H5VL_logi_profiling_timers.m4
+.m4.cpp:
 	$(M4) $(AM_M4FLAGS) $(M4FLAGS) $< >$@
 
-.m4h.hpp: H5VL_logi_profiling_timers.m4
+.m4h.hpp:
 	$(M4) $(AM_M4FLAGS) $(M4FLAGS) $< >$@
 
 libH5VL_log_la_SOURCES = $(C_SRCS) $(CXX_SRCS) $(H_SRCS)
@@ -129,4 +133,8 @@ dist-hook:
 #	$(SED_I) -e "1,10s|_LOGVOL_RELEASE_DATE_|@LOGVOL_RELEASE_DATE@|" $(distdir)/RELEASE_NOTES.md
 #	$(SED_I) -e "1,10s|_LOGVOL_VERSION_|$(LOGVOL_VERSION)|" $(distdir)/RELEASE_NOTES.md
 
-.PHONY:
+# build check targets but not invoke
+tests-local: all $(check_PROGRAMS)
+
+.PHONY: tests
+

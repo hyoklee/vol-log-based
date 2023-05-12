@@ -8,7 +8,7 @@ SUFFIXES = .o .c
 
 AM_DEFAULT_SOURCE_EXT = .c
 
-AM_CPPFLAGS = -I${srcdir}
+AM_CPPFLAGS = -I${srcdir}/../common
 AM_CPPFLAGS += -I${top_srcdir}
 AM_CPPFLAGS += -I${top_srcdir}/src
 AM_CPPFLAGS += -I${top_srcdir}/tests
@@ -16,7 +16,10 @@ AM_CPPFLAGS += -I${top_builddir}
 AM_CPPFLAGS += -I${top_builddir}/src
 AM_CPPFLAGS += -DUSE_HDF5
 AM_CPPFLAGS += -DHDF5_PARALLEL
-LDADD = $(top_builddir)/src/libH5VL_log.la
+LDADD = $(top_builddir)/src/libH5VL_log.la ../common/libtestutils.la
+
+../common/libtestutils.la:
+	set -e; cd ../common && $(MAKE) $(MFLAGS) tests
 
 # The following files will be downloaded from NetCDF4 library
 SEQ_SRCS = tst_files.c \
@@ -80,11 +83,11 @@ hdf5internal.h:
 
 .SECONDEXPANSION:
 
-$(SEQ_SRCS): %.c : $$(wildcard %.patch.$(NETCDF_VERSION))
+$(SEQ_SRCS): %.c : $$(wildcard %.patch.$(NETCDF_VERSION)) err_macros.h
 	@DOWNLOAD_CMD@ $(NETCDF4_URL)/nc_test4/$@
 	if [ -f $(srcdir)/$(basename $@).patch.$(NETCDF_VERSION) ]; then patch -st $@ < $(srcdir)/$(basename $@).patch.$(NETCDF_VERSION); fi
 
-err_macros.h:
+err_macros.h: Makefile
 	@DOWNLOAD_CMD@ $(NETCDF4_URL)/include/$@
 
 ref_tst_dims.nc:
@@ -114,6 +117,7 @@ EXTRA_DIST = wrap_runs.sh parallel_run.sh nc_tests.h \
 # AM_TESTS_ENVIRONMENT += export TESTSEQRUN="$(TESTSEQRUN)";
 # AM_TESTS_ENVIRONMENT += export TESTOUTDIR="$(TESTOUTDIR)";
 TESTS_ENVIRONMENT  = export SED="$(SED)";
+TESTS_ENVIRONMENT += export EGREP="$(EGREP)";
 TESTS_ENVIRONMENT += export top_builddir="$(top_builddir)";
 TESTS_ENVIRONMENT += export TESTOUTDIR="$(TESTOUTDIR)";
 TESTS_ENVIRONMENT += export TESTSEQRUN="$(TESTSEQRUN)";
@@ -121,10 +125,11 @@ TESTS_ENVIRONMENT += export TESTMPIRUN="$(TESTMPIRUN)";
 TESTS_ENVIRONMENT += export TESTPROGRAMS="$(TESTPROGRAMS)";
 TESTS_ENVIRONMENT += export check_PROGRAMS="$(check_PROGRAMS)";
 TESTS_ENVIRONMENT += export PAR_TESTS="$(PAR_TESTS)";
+TESTS_ENVIRONMENT += export NCDUMP=@NCDUMP@;
 
 H5_FILES = $(check_PROGRAMS:%=$(TESTOUTDIR)/%.h5)
 
-CLEANFILES = $(H5_FILES) core core.* *.gcda *.gcno *.gcov gmon.out *.h5 *.nc  *.log
+CLEANFILES = $(H5_FILES) core core.* *.gcda *.gcno *.gcov gmon.out *.h5 *.nc  *.log *.dump
 
 DISTCLEANFILES = $(SEQ_SRCS) $(PAR_SRCS) \
                  nc4internal.h err_macros.h \
@@ -136,14 +141,15 @@ SH_LOG_COMPILER =
 
 TESTS = $(TESTPROGRAMS)
 
-# build check targets but not invoke
-tests-local: all $(check_PROGRAMS)
-
 ptest: $(PAR_TESTS)
-	@echo "==========================================================="
+	@echo "============================================================================"
 	@echo "    $(subdir): Parallel testing on 4 MPI processes"
-	@echo "==========================================================="
+	@echo "============================================================================"
 	@$(TESTS_ENVIRONMENT) \
 	$(srcdir)/parallel_run.sh 4 || exit 1
 
-.PHONY: ptest
+# build check targets but not invoke
+tests-local: all $(check_PROGRAMS)
+
+.PHONY: ptest tests
+

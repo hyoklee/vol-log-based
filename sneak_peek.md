@@ -4,13 +4,13 @@ This is essentially a placeholder for the next release note ...
 (Copy the contents below to RELEASE_NOTE.md when making an official release.)
 
 * New features
-  + none    
+  + Support Passthru mode for read. See PR #61.
 
 * New optimization
   + none
 
 * New Limitations
-  + none
+  + When performing passthru read, only independent MPI mode is supported. See PR #61.
 
 * Update configure options
   + none
@@ -21,43 +21,22 @@ This is essentially a placeholder for the next release note ...
 * New APIs
   + none
 
-* New native HDF5 APIs
+* API syntax changes
   + none
 
-* API syntax changes
-  + H5Pget/set_subfiling property type changed to int
-    + Signature
-      ```
-        herr_t H5Pset_subfiling (hid_t fcplid, int  nsubfiles);
-        herr_t H5Pget_subfiling (hid_t fcplid, int *nsubfiles);
-      ```
-      `fcplid` is the file creation preperty list ID.
-    + Allows setting the number of subfiles including disabling/enabling subfiling.
-      + When nsubfiles is 0: disable subfiling.
-      + When nsubfiles is a negative values: one subfile per computer node.
-      + When nsubfiles is a positive value: create "nsubfiles" subfiles.
-
-* Run-time environment variables
-  + Environment variable `H5VL_LOG_NSUBFILES` has been changed to match the
-    argument "nsubfiles" in API `H5Pget/set_subfiling` described above.
-
 * API semantics updates
-  + Remove the restriction that does not allow user objects with a name starting with '_'
+  + none
 
 * New error code precedence
   + none
 
 * Updated error strings
-  + Return error if a file is opened multiple time
-    + Logvol only allow one opened file handle at a time.
+  + none
 
 * New error code
   + none
 
 * New I/O hint
-  + none
-
-* New run-time environment variables
   + none
 
 * Build recipes
@@ -70,10 +49,7 @@ This is essentially a placeholder for the next release note ...
   + none
 
 * Bug fixes
-  + Fix a bug when reading interleaving regions within a log entry
-    + H5VL_log_dataset_readi_gen_rtypes produces an invalid file type due to interleaving read regions not being detected
-  + Fix a bug in H5VL_log_link_create that uses the calling convention of an older VOL interface
-  + Deduce internal attributes from attributes count in object info
+  + none
 
 * New example programs
   + none
@@ -82,8 +58,7 @@ This is essentially a placeholder for the next release note ...
   + none
 
 * New test program
-  + tests/testcases/multi_open
-    + Test opening a second handle to the same file without closing the first one.
+  + tests/passthru/col_read.cpp. This test program tests the non-blocking read feature when passthru mode is enabled.
 
 * Conformity with HDF5 library
   + none

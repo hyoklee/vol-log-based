@@ -16,13 +16,15 @@
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include <H5VL_log.h>
+#include <libgen.h> /* basename() */
 #include <hdf5.h>
 #include <mpi.h>
+#include <H5VL_log.h>
 
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 
 #define N 10  // Size to write per process
 
@@ -143,6 +145,9 @@ int main (int argc, char **argv) {
 
     err = H5VLclose (log_vlid);
     assert (err == 0);
+
+    if (rank == 0)
+        printf("  * TESTING CXX    %-48s ---- pass\n", basename(argv[0]));
 
     MPI_Finalize ();
 

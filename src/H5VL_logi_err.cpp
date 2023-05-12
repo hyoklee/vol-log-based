@@ -9,8 +9,8 @@
 #endif
 //
 #include <exception>
-#include <string>
 #include <iostream>
+#include <string>
 //
 #include <H5VL_logi_err.hpp>
 //
@@ -19,15 +19,11 @@ H5VL_logi_exception::H5VL_logi_exception (const char *file,
                                           int line,
                                           const char *func,
                                           const char *msg)
-    : file (file), line (line), func (func), msg (msg), is_hdf5 (false) {
-        std::cout << "In " + std::string(func) + " at " + std::string(file) + ":" + std::to_string (line) + ": " + std::string(msg) << std::endl;
-    }
+    : file (file), line (line), func (func), msg (msg), is_hdf5 (false) {}
 
 H5VL_logi_exception::H5VL_logi_exception (
     const char *file, int line, const char *func, std::string msg, bool is_hdf5)
-    : file (file), line (line), func (func), msg (msg), is_hdf5 (is_hdf5) {
-       std::cout << "In " + std::string(func) + " at " + std::string(file) + ":" + std::to_string (line) + ": " + std::string(msg) << std::endl;
-    }
+    : file (file), line (line), func (func), msg (msg), is_hdf5 (is_hdf5) {}
 
 std::string H5VL_logi_exception::what () {
     return "In " + func + " at " + file + ":" + std::to_string (line) + ": " + msg;

@@ -22,9 +22,11 @@ int main (int argc, char **argv) {
     hid_t faplid   = -1;
     hid_t faplid_custom   = H5I_INVALID_HID;
     hid_t log_vlid = -1;  // Logvol ID
-    hbool_t ret;
+    vol_env env;
 
-    MPI_Init (&argc, &argv);
+    int mpi_required;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &mpi_required);
+
     MPI_Comm_size (MPI_COMM_WORLD, &np);
     MPI_Comm_rank (MPI_COMM_WORLD, &rank);
 
@@ -37,17 +39,22 @@ int main (int argc, char **argv) {
     } else {
         file_name = "test.h5";
     }
-    SHOW_TEST_INFO ("Creating files")
 
-    // Register LOG VOL plugin
-    log_vlid = H5VLregister_connector (&H5VL_log_g, H5P_DEFAULT);
+    /* check VOL related environment variables */
+    check_env(&env);
+    SHOW_TEST_INFO ("Creating files")
 
     faplid = H5Pcreate (H5P_FILE_ACCESS);
     CHECK_ID(faplid)
     // MPI and collective metadata is required by LOG VOL
     H5Pset_fapl_mpio (faplid, MPI_COMM_WORLD, MPI_INFO_NULL);
     H5Pset_all_coll_metadata_ops (faplid, 1);
-    H5Pset_vol (faplid, log_vlid, NULL);
+
+    if (env.native_only == 0 && env.connector == 0) {
+        // Register LOG VOL plugin
+        log_vlid = H5VLregister_connector (&H5VL_log_g, H5P_DEFAULT);
+        H5Pset_vol (faplid, log_vlid, NULL);
+    }
 
     faplid_custom = H5Pcopy(faplid);
     CHECK_ID(faplid_custom)
@@ -79,7 +86,7 @@ err_out:
     if (fid >= 0) H5Fclose (fid);
     if (faplid >= 0) H5Pclose (faplid);
     if (faplid_custom >= 0) H5Pclose (faplid_custom);
-    if (log_vlid >= 00) H5VLclose (log_vlid);
+    if (log_vlid >= 0) H5VLclose (log_vlid);
 
     SHOW_TEST_RESULT
 

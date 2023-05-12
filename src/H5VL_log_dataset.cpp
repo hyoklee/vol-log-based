@@ -74,15 +74,16 @@ void *H5VL_log_dataset_create (void *obj,
     char *iname = NULL;  // Internal name of object
     H5VL_log_req_t *rp;
     void **ureqp, *ureq;
+    H5D_fill_value_t stat;
+    void *lib_state = NULL;
     // char lname[1024];
+    H5VL_logi_err_finally finally (
+        [&dcpl_id, &lib_state] () -> void { H5VL_logi_restore_lib_stat (lib_state); });
 
     try {
         H5VL_LOGI_PROFILING_TIMER_START;
-
         /* Check arguments */
-        if(op->fp->is_log_based_file) {
-            iname = H5VL_logi_name_remap (name);
-        }
+        if (op->fp->is_log_based_file) { iname = H5VL_logi_name_remap (name); }
 
         // Logvol doesn't support variable len type
         is_var_type = H5Tis_variable_str (type_id);
@@ -97,9 +98,10 @@ void *H5VL_log_dataset_create (void *obj,
             ureqp = NULL;
         }
 
-        dp     = new H5VL_log_dset_t (op, H5I_DATASET);
-        if(!op->fp->is_log_based_file) {
-            dp->uo = H5VLdataset_create(op->uo, loc_params, op->uvlid, name, lcpl_id, type_id, space_id, dcpl_id, dapl_id, dxpl_id, ureqp);
+        dp = new H5VL_log_dset_t (op, H5I_DATASET);
+        if (!op->fp->is_log_based_file) {
+            dp->uo = H5VLdataset_create (op->uo, loc_params, op->uvlid, name, lcpl_id, type_id,
+                                         space_id, dcpl_id, dapl_id, dxpl_id, ureqp);
             CHECK_PTR (dp->uo)
             if (req) { rp->append (ureq); }
             return dp;
@@ -110,18 +112,17 @@ void *H5VL_log_dataset_create (void *obj,
         err = H5Pset_layout (dcpl_id, H5D_CONTIGUOUS);
         CHECK_ERR
 
-        
         dp->id = dp->fp->ndset;  // ID nees to be set before writing to attribute
 
         H5VL_LOGI_PROFILING_TIMER_START;
-        zero_space = H5Screate(H5S_NULL);
+        zero_space = H5Screate (H5S_NULL);
 
-        dp->uo = H5VLdataset_create (op->uo, loc_params, op->uvlid, iname, lcpl_id, type_id, zero_space,
-                                     dcpl_id, dapl_id, dxpl_id, ureqp);
+        dp->uo = H5VLdataset_create (op->uo, loc_params, op->uvlid, iname, lcpl_id, type_id,
+                                     zero_space, dcpl_id, dapl_id, dxpl_id, ureqp);
         H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VLDATASET_CREATE);
         CHECK_PTR (dp->uo)
         if (req) { rp->append (ureq); }
-        H5Sclose(zero_space);
+        H5Sclose (zero_space);
 
         // Construct new dataset info
         dip = new H5VL_log_dset_info_t ();
@@ -131,6 +132,16 @@ void *H5VL_log_dataset_create (void *obj,
         CHECK_ID (dip->dtype)
         dip->esize = H5Tget_size (type_id);
         CHECK_ID (dip->esize)
+
+        err = H5Pfill_value_defined (dcpl_id, &stat);
+        if (stat == H5D_FILL_VALUE_DEFAULT || stat == H5D_FILL_VALUE_USER_DEFINED) {
+            dip->fill = (char *)malloc (dip->esize);
+            CHECK_PTR (dip->fill)
+            err = H5Pget_fill_value (dcpl_id, type_id, dip->fill);
+            CHECK_ERR
+        } else {
+            dip->fill = NULL;
+        }
 
         // NOTE: I don't know if it work for scalar dataset, can we create zero sized attr?
         ndim = H5Sget_simple_extent_dims (space_id, dip->dims, dip->mdims);
@@ -147,6 +158,9 @@ void *H5VL_log_dataset_create (void *obj,
 
         // Filters
         H5VL_logi_get_filters (dcpl_id, dip->filters);
+
+        // Reset hdf5 context to allow attr operations within a dataset operation
+        H5VL_logi_reset_lib_stat (lib_state);
 
         // Record dataset metadata as attributes
         H5VL_logi_add_att (dp, H5VL_LOG_DATASETI_ATTR_DIMS, H5T_STD_I64LE, H5T_NATIVE_INT64,
@@ -184,7 +198,6 @@ void *H5VL_log_dataset_create (void *obj,
                                                    H5P_LINK_ACCESS_DEFAULT, dp->fp->dxplid, req);
         CHECK_ERR
         */
-
         H5VL_LOGI_PROFILING_TIMER_STOP (dp->fp, TIMER_H5VL_LOG_DATASET_CREATE);
 
 #ifdef LOGVOL_DEBUG
@@ -227,21 +240,21 @@ void *H5VL_log_dataset_open (void *obj,
     char *iname        = NULL;  // Internal name of object
     H5VL_log_obj_t *op = (H5VL_log_obj_t *)obj;
     void *uo           = NULL;
-    
+
     try {
 #ifdef LOGVOL_DEBUG
         if (H5VL_logi_debug_verbose ()) { printf ("H5VL_log_dataset_open(%p, %s)\n", obj, name); }
 #endif
         /* Check arguments */
-        
+
         if (op->fp->is_log_based_file) {
             /* Rename user objects to avoid conflict with internal object */
             iname = H5VL_logi_name_remap (name);
         } else {
-            H5VL_log_dset_t *dp = new H5VL_log_dset_t(op, H5I_DATASET);
+            H5VL_log_dset_t *dp = new H5VL_log_dset_t (op, H5I_DATASET);
             dp->uo = H5VLdataset_open (op->uo, loc_params, op->uvlid, name, dapl_id, dxpl_id, NULL);
             CHECK_PTR (dp->uo);
-            return (void*) dp;
+            return (void *)dp;
         }
 
         H5VL_LOGI_PROFILING_TIMER_START;
@@ -269,22 +282,23 @@ err_out:;
  *
  *-------------------------------------------------------------------------
  */
-herr_t H5VL_log_dataset_read (void *dset,
-                              hid_t mem_type_id,
-                              hid_t mem_space_id,
-                              hid_t file_space_id,
-                              hid_t plist_id,
-                              void *buf,
-                              void **req) {
+herr_t H5VL_log_dataset_read_1 (void *dset,
+                                hid_t mem_type_id,
+                                hid_t mem_space_id,
+                                hid_t file_space_id,
+                                hid_t plist_id,
+                                void *buf,
+                                void **req) {
     herr_t err                = 0;
     H5VL_log_dset_t *dp       = (H5VL_log_dset_t *)dset;
     H5VL_log_dset_info_t *dip = NULL;  // Dataset info
-    hid_t dsid;                                              // Dataset space id
-    H5VL_log_selections *dsel = NULL;                        // Selection blocks
+    hid_t dsid;                        // Dataset space id
+    H5VL_log_selections *dsel = NULL;  // Selection blocks
 
     try {
-        if(!dp->fp->is_log_based_file) {
-            return H5VLdataset_read(dp->uo, dp->uvlid, mem_type_id, mem_space_id, file_space_id, plist_id, buf, NULL);
+        if (!dp->fp->is_log_based_file) {
+            return H5VL_log_under_dataset_read (dp->uo, dp->uvlid, mem_type_id, mem_space_id, file_space_id,
+                                     plist_id, buf, NULL);
         }
         dip = dp->fp->dsets_info[dp->id];
         H5VL_LOGI_PROFILING_TIMER_START;
@@ -320,23 +334,24 @@ err_out:;
  *
  *-------------------------------------------------------------------------
  */
-herr_t H5VL_log_dataset_write (void *dset,
-                               hid_t mem_type_id,
-                               hid_t mem_space_id,
-                               hid_t file_space_id,
-                               hid_t plist_id,
-                               const void *buf,
-                               void **req) {
-    herr_t err                = 0;
-    H5VL_log_dset_t *dp       = (H5VL_log_dset_t *)dset;
+herr_t H5VL_log_dataset_write_1 (void *dset,
+                                 hid_t mem_type_id,
+                                 hid_t mem_space_id,
+                                 hid_t file_space_id,
+                                 hid_t plist_id,
+                                 const void *buf,
+                                 void **req) {
+    herr_t err          = 0;
+    H5VL_log_dset_t *dp = (H5VL_log_dset_t *)dset;
 
     H5VL_log_dset_info_t *dip = NULL;  // Dataset info
-    hid_t dsid;                                              // Dataset space id
-    H5VL_log_selections *dsel = NULL;                        // Selection blocks
+    hid_t dsid;                        // Dataset space id
+    H5VL_log_selections *dsel = NULL;  // Selection blocks
 
     try {
-        if(!dp->fp->is_log_based_file) {
-            return H5VLdataset_write(dp->uo, dp->uvlid, mem_type_id, mem_space_id, file_space_id, plist_id, buf, NULL);
+        if (!dp->fp->is_log_based_file) {
+            return H5VL_log_under_dataset_write (dp->uo, dp->uvlid, mem_type_id, mem_space_id, file_space_id,
+                                      plist_id, buf, NULL);
         }
         dip = dp->fp->dsets_info[dp->id];
         H5VL_LOGI_PROFILING_TIMER_START;
@@ -362,6 +377,46 @@ err_out:;
     if (dsid != file_space_id) { H5Sclose (dsid); }
     return err;
 } /* end H5VL_log_dataset_write() */
+
+herr_t H5VL_log_dataset_read_2 (size_t count,
+                                void *dset[],
+                                hid_t mem_type_id[],
+                                hid_t mem_space_id[],
+                                hid_t file_space_id[],
+                                hid_t plist_id,
+                                void *buf[],
+                                void **req) {
+    herr_t err = 0;
+    size_t i;
+
+    for (i = 0; i < count; i++) {
+        err = H5VL_log_dataset_read_1 (dset[i], mem_type_id[i], mem_space_id[i], file_space_id[i],
+                                       plist_id, buf[i], NULL);
+        CHECK_ERR
+    }
+
+    return err;
+}
+
+herr_t H5VL_log_dataset_write_2 (size_t count,
+                                 void *dset[],
+                                 hid_t mem_type_id[],
+                                 hid_t mem_space_id[],
+                                 hid_t file_space_id[],
+                                 hid_t plist_id,
+                                 const void *buf[],
+                                 void **req) {
+    herr_t err = 0;
+    size_t i;
+
+    for (i = 0; i < count; i++) {
+        err = H5VL_log_dataset_write_1 (dset[i], mem_type_id[i], mem_space_id[i], file_space_id[i],
+                                        plist_id, buf[i], NULL);
+        CHECK_ERR
+    }
+
+    return err;
+}
 
 /*-------------------------------------------------------------------------
  * Function:    H5VL_log_dataset_get
@@ -457,7 +512,7 @@ herr_t H5VL_log_dataset_specific (void *obj,
     try {
         H5VL_LOGI_PROFILING_TIMER_START;
         if (!dp->fp->is_log_based_file) {
-            err = H5VLdataset_specific(dp->uo, dp->uvlid, args, dxpl_id, req);
+            err = H5VLdataset_specific (dp->uo, dp->uvlid, args, dxpl_id, req);
             return err;
         }
 
@@ -469,7 +524,7 @@ herr_t H5VL_log_dataset_specific (void *obj,
                 const hsize_t *new_sizes = args->args.set_extent.size;
 
                 // Adjust dim
-                for (i = 0; i < (int32_t) (dip->ndim); i++) {
+                for (i = 0; i < (int32_t)(dip->ndim); i++) {
                     if (dip->mdims[i] != H5S_UNLIMITED && new_sizes[i] > dip->mdims[i]) {
                         err = -1;
                         ERR_OUT ("size cannot exceed max size")
@@ -527,16 +582,14 @@ herr_t H5VL_log_dataset_optional (void *obj,
                                   H5VL_optional_args_t *args,
                                   hid_t dxpl_id,
                                   void **req) {
-    herr_t err                = 0;
-    H5VL_log_obj_t *op        = (H5VL_log_obj_t *)obj;
-    H5VL_log_dset_t *dp       = (H5VL_log_dset_t *)op;
+    herr_t err          = 0;
+    H5VL_log_obj_t *op  = (H5VL_log_obj_t *)obj;
+    H5VL_log_dset_t *dp = (H5VL_log_dset_t *)op;
 
-
-    if(!dp->fp->is_log_based_file) {
+    if (!dp->fp->is_log_based_file) {
         err = H5VLdataset_optional (op->uo, op->uvlid, args, dxpl_id, req);
         return err;
     }
-
 
     H5VL_log_dset_info_t *dip = dp->fp->dsets_info[dp->id];  // Dataset info
     // H5VL_log_req_t *rp;

@@ -9,7 +9,7 @@ dnl
 
 dnl autoconf v2.69 was released in 2012-04-24
 AC_PREREQ([2.69])
-AC_INIT([H5VL_log],[1.3.0],[],[H5VL_log],[])
+AC_INIT([H5VL_log],[1.4.0],[],[H5VL_log],[])
 
 AM_EXTRA_RECURSIVE_TARGETS([tests])
 
@@ -350,6 +350,17 @@ if test x$hdf5_ge_1_13_0 = xno; then
      H5VL_log requires HDF5 1.13.0 and later. Abort.
    -----------------------------------------------------------------------])
 fi
+AC_MSG_CHECKING([whether HDF5 version is 1.13.3 or later])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <hdf5.h>
+#if (H5_VERS_MAJOR*1000000 + H5_VERS_MINOR*1000 + H5_VERS_RELEASE < 1013003)
+#error HDF5 version is older than 1.13.3
+#endif
+   ]])], [hdf5_ge_1_13_3=yes], [hdf5_ge_1_13_3=no])
+AC_MSG_RESULT([$hdf5_ge_1_13_3])
+if test x$hdf5_ge_1_13_3 = xyes; then
+   AC_DEFINE(HDF5_GE_1133, 1, ["HDF5 version greater than 1.13.3"])
+fi
 AC_MSG_CHECKING([whether HDF5 parallel I/O is enabled])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <hdf5.h>
@@ -485,6 +496,11 @@ AC_ARG_ENABLE([test-netcdf4],
    fi
 ])
 AM_CONDITIONAL(ENABLE_NETCDF4, [test "x$have_netcdf4" = xyes])
+
+if test "x$have_netcdf4" = xyes ; then
+   AC_PATH_PROG([nc_dump],[ncdump],,[$netcdf4_bindir])
+   AC_SUBST(NCDUMP, [$nc_dump])
+fi
 
 AC_ARG_ENABLE([zlib],
    [AS_HELP_STRING([--enable-zlib],
@@ -659,7 +675,7 @@ if test "x${have_openpmd}" = xyes; then
    mkdir -p tests/external/openpmd
    cd tests/external/openpmd
    rm -rf ./openPMD-api
-   openpmd_version=0.14.4
+   openpmd_version=0.14.5
    rm -f openPMD-api.tar.gz
    ${download_cmd} https://github.com/openPMD/openPMD-api/archive/refs/tags/${openpmd_version}.tar.gz -O openPMD-api.tar.gz
    AC_MSG_RESULT([${openpmd_version}.tar.gz])
@@ -713,7 +729,7 @@ AC_ARG_ENABLE(versioning,
 dnl For libtool ABI versioning rules see:
 dnl http://www.gnu.org/software/libtool/manual/libtool.html#Updating-version-info
 dnl Update the version information only immediately before a public release.
-ABIVERSION="2:0:0"
+ABIVERSION="3:0:0"
 AC_SUBST(ABIVERSION)
 if test "$enable_versioning" = "yes" ; then
    ABIVERSIONFLAGS="-version-info \$(ABIVERSION)"
@@ -727,10 +743,13 @@ AC_CONFIG_FILES(Makefile \
                 src/Makefile \
                 src/H5VL_log.h \
                 tests/Makefile \
+                tests/common/Makefile \
                 tests/basic/Makefile \
                 tests/dynamic/Makefile \
                 tests/external/Makefile \
-                tests/passthru_features/Makefile \
+                tests/passthru/Makefile \
+                cache.cfg \
+                tests/read_regular/Makefile \
                 tests/external/hdf5_iotest/config.sh \
                 tests/external/hdf5_iotest/Makefile \
                 tests/external/openpmd/config.sh \

@@ -47,39 +47,47 @@ void H5VL_logi_array_idx_t::parse_block (char *block, size_t size) {
         while (bufp < block + size) {
             H5VL_logi_meta_hdr *hdr_tmp = (H5VL_logi_meta_hdr *)bufp;
 
+            // Skip the search if dataset is unlinked
+            if (fp->dsets_info[hdr_tmp->did]) {
 #ifdef WORDS_BIGENDIAN
-            H5VL_logi_lreverse ((uint32_t *)bufp, (uint32_t *)(bufp + sizeof (H5VL_logi_meta_hdr)));
+                H5VL_logi_lreverse ((uint32_t *)bufp,
+                                    (uint32_t *)(bufp + sizeof (H5VL_logi_meta_hdr)));
 #endif
 
-            // Have to parse all entries for reference purpose
-            if (hdr_tmp->flag & H5VL_LOGI_META_FLAG_SEL_REF) {
-                H5VL_logi_metaentry_ref_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry,
-                                                bcache);
-            } else {
-                H5VL_logi_metaentry_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry);
+                // Have to parse all entries for reference purpose
+                if (hdr_tmp->flag & H5VL_LOGI_META_FLAG_SEL_REF) {
+                    H5VL_logi_metaentry_ref_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry,
+                                                    bcache);
+                } else {
+                    H5VL_logi_metaentry_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry);
 
-                // Insert to cache
-                bcache[bufp] = entry.sels;
+                    // Insert to cache
+                    bcache[bufp] = entry.sels;
+                }
+                // Insert to the index
+                fp->idx->insert (entry);
             }
-            bufp += hdr_tmp->meta_size;
 
-            // Insert to the index
-            fp->idx->insert (entry);
+            bufp += hdr_tmp->meta_size;
         }
     } else {
         while (bufp < block + size) {
             H5VL_logi_meta_hdr *hdr_tmp = (H5VL_logi_meta_hdr *)bufp;
 
+            // Skip the search if dataset is unlinked
+            if (fp->dsets_info[hdr_tmp->did]) {
 #ifdef WORDS_BIGENDIAN
-            H5VL_logi_lreverse ((uint32_t *)bufp, (uint32_t *)(bufp + sizeof (H5VL_logi_meta_hdr)));
+                H5VL_logi_lreverse ((uint32_t *)bufp,
+                                    (uint32_t *)(bufp + sizeof (H5VL_logi_meta_hdr)));
 #endif
 
-            H5VL_logi_metaentry_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry);
+                H5VL_logi_metaentry_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry);
+
+                // Insert to the index
+                fp->idx->insert (entry);
+            }
 
             bufp += hdr_tmp->meta_size;
-
-            // Insert to the index
-            fp->idx->insert (entry);
         }
     }
 }

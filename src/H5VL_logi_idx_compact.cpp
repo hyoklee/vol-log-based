@@ -104,59 +104,66 @@ void H5VL_logi_compact_idx_t::parse_block (char *block, size_t size) {
         while (bufp < block + size) {
             H5VL_logi_meta_hdr *hdr_tmp = (H5VL_logi_meta_hdr *)bufp;
 
+            // Skip the search if dataset is unlinked
+            if (fp->dsets_info[hdr_tmp->did]) {
 #ifdef WORDS_BIGENDIAN
-            H5VL_logi_lreverse ((uint32_t *)bufp, (uint32_t *)(bufp + sizeof (H5VL_logi_meta_hdr)));
+                H5VL_logi_lreverse ((uint32_t *)bufp,
+                                    (uint32_t *)(bufp + sizeof (H5VL_logi_meta_hdr)));
 #endif
-            // Have to parse all entries for reference purpose
-            if (hdr_tmp->flag & H5VL_LOGI_META_FLAG_SEL_REF) {
-                MPI_Offset rec, roff;
+                // Have to parse all entries for reference purpose
+                if (hdr_tmp->flag & H5VL_LOGI_META_FLAG_SEL_REF) {
+                    MPI_Offset rec, roff;
 
-                // Check if it is a record entry
-                if (hdr_tmp->flag & H5VL_LOGI_META_FLAG_REC) {
-                    rec  = ((MPI_Offset *)(hdr_tmp + 1))[0];
-                    roff = ((MPI_Offset *)(hdr_tmp + 1))[1];
+                    // Check if it is a record entry
+                    if (hdr_tmp->flag & H5VL_LOGI_META_FLAG_REC) {
+                        rec  = ((MPI_Offset *)(hdr_tmp + 1))[0];
+                        roff = ((MPI_Offset *)(hdr_tmp + 1))[1];
 #ifdef WORDS_BIGENDIAN
-                    H5VL_logi_llreverse ((uint64_t *)(&rec));
+                        H5VL_logi_llreverse ((uint64_t *)(&rec));
 #endif
+                    } else {
+                        roff = ((MPI_Offset *)(hdr_tmp + 1))[0];
+                    }
+#ifdef WORDS_BIGENDIAN
+                    H5VL_logi_llreverse ((uint64_t *)(&roff));
+#endif
+                    centry      = new H5VL_logi_compact_idx_entry_t (hdr_tmp->foff, hdr_tmp->fsize,
+                                                                bcache[bufp + roff]);
+                    centry->rec = (hssize_t)rec;
                 } else {
-                    roff = ((MPI_Offset *)(hdr_tmp + 1))[0];
+                    H5VL_logi_metaentry_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry);
+
+                    centry = new H5VL_logi_compact_idx_entry_t (fp->dsets_info[hdr_tmp->did]->ndim,
+                                                                entry);
+
+                    // Insert to cache
+                    bcache[bufp] = centry;
                 }
-#ifdef WORDS_BIGENDIAN
-                H5VL_logi_llreverse ((uint64_t *)(&roff));
-#endif
-                centry      = new H5VL_logi_compact_idx_entry_t (hdr_tmp->foff, hdr_tmp->fsize,
-                                                            bcache[bufp + roff]);
-                centry->rec = (hssize_t)rec;
-            } else {
-                H5VL_logi_metaentry_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry);
-
-                centry =
-                    new H5VL_logi_compact_idx_entry_t (fp->dsets_info[hdr_tmp->did]->ndim, entry);
-
-                // Insert to cache
-                bcache[bufp] = centry;
+                // Insert to the index
+                this->idxs[hdr_tmp->did].push_back (centry);
             }
             bufp += hdr_tmp->meta_size;
-
-            // Insert to the index
-            this->idxs[hdr_tmp->did].push_back (centry);
         }
     } else {
         while (bufp < block + size) {
             H5VL_logi_meta_hdr *hdr_tmp = (H5VL_logi_meta_hdr *)bufp;
 
+            // Skip the search if dataset is unlinked
+            if (fp->dsets_info[hdr_tmp->did]) {
 #ifdef WORDS_BIGENDIAN
-            H5VL_logi_lreverse ((uint32_t *)bufp, (uint32_t *)(bufp + sizeof (H5VL_logi_meta_hdr)));
+                H5VL_logi_lreverse ((uint32_t *)bufp,
+                                    (uint32_t *)(bufp + sizeof (H5VL_logi_meta_hdr)));
 #endif
 
-            H5VL_logi_metaentry_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry);
+                H5VL_logi_metaentry_decode (*(fp->dsets_info[hdr_tmp->did]), bufp, entry);
 
-            centry = new H5VL_logi_compact_idx_entry_t (fp->dsets_info[hdr_tmp->did]->ndim, entry);
+                centry =
+                    new H5VL_logi_compact_idx_entry_t (fp->dsets_info[hdr_tmp->did]->ndim, entry);
 
+                // Insert to the index
+                this->idxs[hdr_tmp->did].push_back (centry);
+            }
             bufp += hdr_tmp->meta_size;
-
-            // Insert to the index
-            this->idxs[hdr_tmp->did].push_back (centry);
         }
     }
 }
@@ -185,6 +192,9 @@ void H5VL_logi_compact_idx_t::search (H5VL_log_rreq_t *req,
     hsize_t *start, *count;
     hsize_t os[H5S_MAX_RANK], oc[H5S_MAX_RANK];
     H5VL_log_idx_search_ret_t cur;
+
+    // Skip the search if dataset is unlinked
+    if (!(fp->dsets_info[req->hdr.did])) { return; }
 
     soff = 0;
     for (i = 0; i < req->sels->nsel; i++) {

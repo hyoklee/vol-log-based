@@ -200,16 +200,16 @@ H5VL_log_selections::H5VL_log_selections (hid_t dsid) {
                 CHECK_ERR
 
                 int is_stride_all_ones = true;
-                int is_count_all_ones = true;
-                int is_block_all_ones = true;
+                int is_count_all_ones  = true;
+                int is_block_all_ones  = true;
                 for (i = 0; i < ndim; i++) {
                     if (stride[i] != 1) is_stride_all_ones = false;
-                    if (count[i]  != 1) is_count_all_ones  = false;
-                    if (block[i]  != 1) is_block_all_ones  = false;
+                    if (count[i] != 1) is_count_all_ones = false;
+                    if (block[i] != 1) is_block_all_ones = false;
                 }
 
                 if ((is_stride_all_ones && is_block_all_ones) || is_count_all_ones) {
-                    this->nsel = 1;   /* there is only 1 block in this case */
+                    this->nsel = 1; /* there is only 1 block in this case */
                     this->alloc (1);
                     for (i = 0; i < ndim; i++) {
                         starts[0][i] = start[i];
@@ -296,7 +296,6 @@ H5VL_log_selections::H5VL_log_selections (hid_t dsid) {
                 }
 
                 // Allocate buffer
-                this->nsel = nreq;
                 this->alloc (nreq);
 
                 // Fill up selections
@@ -364,13 +363,13 @@ H5VL_log_selections::H5VL_log_selections (hid_t dsid) {
                         }
                     }
                 }
+                this->nsel = nreq;
             }
         } break;
         case H5S_SEL_POINTS: {
             nblock = H5Sget_select_elem_npoints (dsid);
             CHECK_ID (nblock)
 
-            this->nsel = nblock;
             this->alloc (nblock);
 
             if (nblock) {
@@ -395,6 +394,7 @@ H5VL_log_selections::H5VL_log_selections (hid_t dsid) {
                 std::sort (starts, starts + nblock, comp);
                 merge_blocks<false> (ndim, nblock, starts, counts);
             }
+            this->nsel = nblock;
         } break;
         case H5S_SEL_ALL: {
             hsize_t dims[32];
@@ -549,7 +549,6 @@ void H5VL_log_selections::convert_to_deep () {
 }
 
 void H5VL_log_selections::get_mpi_type (size_t esize, MPI_Datatype *type) {
-    herr_t err = 0;
     int mpierr;
     int i, j;
     bool derived_etype;

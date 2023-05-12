@@ -9,10 +9,11 @@
 #include "H5VL_log_file.hpp"
 #include "H5VL_logi.hpp"
 
-#define H5VL_FILEI_CONFIG_METADATA_MERGE 0x01
-#define H5VL_FILEI_CONFIG_SEL_ENCODE     0x02
-#define H5VL_FILEI_CONFIG_SEL_DEFLATE    0x04
-#define H5VL_FILEI_CONFIG_METADATA_SHARE 0x08
+#define H5VL_FILEI_CONFIG_METADATA_MERGE      0x01
+#define H5VL_FILEI_CONFIG_SEL_ENCODE          0x02
+#define H5VL_FILEI_CONFIG_SEL_DEFLATE         0x04
+#define H5VL_FILEI_CONFIG_METADATA_SHARE      0x08
+#define H5VL_FILEI_CONFIG_PASSTHRU            0x10
 
 #define H5VL_FILEI_CONFIG_DATA_ALIGN 0x100
 #define H5VL_FILEI_CONFIG_SUBFILING  0x200
@@ -20,7 +21,8 @@
 #define H5VL_FILEI_CONFIG_SINGLE_SUBFILE_READ 0x400
 
 #define H5VL_LOG_FILEI_GROUP_LOG "_LOG"
-#define H5VL_LOG_FILEI_ATTR_INT  "_int_att"
+#define H5VL_LOG_FILEI_ATTR      "_int_att"
+#define H5VL_LOG_FILEI_NATTR     5
 #define H5VL_LOG_FILEI_DSET_META "_md"
 #define H5VL_LOG_FILEI_DSET_DATA "_ld"
 
@@ -42,6 +44,7 @@ inline void H5VL_log_filei_init_idx (H5VL_log_file_t *fp) {
 }
 
 extern void H5VL_log_filei_post_open (H5VL_log_file_t *fp);
+extern void H5VL_log_filei_post_create (H5VL_log_file_t *fp);
 extern herr_t H5VL_log_filei_dset_visit (hid_t o_id,
                                          const char *name,
                                          const H5O_info_t *object_info,

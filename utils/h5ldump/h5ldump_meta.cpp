@@ -171,7 +171,6 @@ inline void h5ldump_print_data (uint8_t *buf, size_t nelem, size_t esize, hid_t 
 
 void h5ldump_mdsec (
     uint8_t *buf, size_t len, std::vector<H5VL_log_dset_info_t> &dsets, MPI_File fh, int indent) {
-    herr_t err = 0;
     int mpierr;
     int i;
     uint8_t *bufp = buf;              // Current decoding location in buf
@@ -217,6 +216,10 @@ void h5ldump_mdsec (
             }
             bsize *= dsets[block.hdr.did].esize;
 
+            if (block.hdr.fsize > (MPI_Offset)bsize){
+                abort();
+            }
+
             if (dbsize < bsize) {
                 dbsize = bsize;
                 dbuf   = (uint8_t *)realloc (dbuf, dbsize);
@@ -255,7 +258,8 @@ void h5ldump_mdsec (
         std::cout << std::endl;
         if (hdr->flag & H5VL_LOGI_META_FLAG_SEL_REF) {
             // Get referenced selections
-            auto roff = *((MPI_Offset *)(hdr + 1) + (block.hdr.flag & H5VL_LOGI_META_FLAG_REC));
+            auto roff =
+                *(((MPI_Offset *)(hdr + 1)) + ((block.hdr.flag & H5VL_LOGI_META_FLAG_REC) ? 1 : 0));
             std::cout << std::string (indent, ' ')
                       << "Referenced entry offset: " << (off_t) (bufp - buf + roff) << std::endl;
         }

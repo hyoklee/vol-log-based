@@ -63,7 +63,7 @@ err_out:;
 herr_t H5VL_log_get_wrap_ctx (const void *obj, void **wrap_ctx) {
     herr_t err         = 0;
     H5VL_log_obj_t *op = (H5VL_log_obj_t *)obj;
-    H5VL_log_obj_t *ctx;
+    H5VL_log_wrap_ctx_t *ctx;
 
     try {
 #ifdef LOGVOL_DEBUG
@@ -73,11 +73,14 @@ herr_t H5VL_log_get_wrap_ctx (const void *obj, void **wrap_ctx) {
 #endif
 
         /* Allocate new VOL object wrapping context for the pass through connector */
-        ctx = new H5VL_log_obj_t (op, H5I_NTYPES);
+        ctx = new H5VL_log_wrap_ctx_t ();
         CHECK_PTR (ctx)
 
         /* Increment reference count on underlying VOL ID, and copy the VOL info */
-        err = H5VLget_wrap_ctx (op->uo, op->uvlid, &(ctx->uo));
+        ctx->uvlid = op->uvlid;
+        H5Iinc_ref (ctx->uvlid);
+        ctx->fp = op->fp;
+        err     = H5VLget_wrap_ctx (op->uo, op->uvlid, &(ctx->uo));
         CHECK_ERR
 
         /* Set wrap context to return */
@@ -101,8 +104,8 @@ err_out:;
  *---------------------------------------------------------------------------
  */
 void *H5VL_log_wrap_object (void *obj, H5I_type_t type, void *_wrap_ctx) {
-    H5VL_log_obj_t *ctx = (H5VL_log_obj_t *)_wrap_ctx;
-    H5VL_log_obj_t *wop = NULL;
+    H5VL_log_wrap_ctx_t *ctx = (H5VL_log_wrap_ctx_t *)_wrap_ctx;
+    H5VL_log_obj_t *wop      = NULL;
     void *uo;
 
     try {
@@ -114,13 +117,16 @@ void *H5VL_log_wrap_object (void *obj, H5I_type_t type, void *_wrap_ctx) {
 
         /* Wrap the object with the underlying VOL */
         uo = H5VLwrap_object (obj, type, ctx->uvlid, ctx->uo);
-        if (uo) {
+        if (!ctx->fp->is_log_based_file) {
+            wop = new H5VL_log_obj_t (ctx->fp, type, uo);
+        } else if (uo) {
             if (type == H5I_DATASET) {
-                wop = (H5VL_log_obj_t *)H5VL_log_dataseti_wrap (uo, ctx);
+                wop = (H5VL_log_obj_t *)H5VL_log_dataseti_wrap (uo, ctx->fp);
             } else if (type == H5I_FILE) {
-                wop = (H5VL_log_obj_t *)H5VL_log_filei_wrap (uo, ctx);
+                wop                  = (H5VL_log_obj_t *)H5VL_log_filei_wrap (uo, ctx->fp);
+                wop->fp->wrapped_obj = obj;
             } else {
-                wop = new H5VL_log_obj_t (ctx, type, uo);
+                wop = new H5VL_log_obj_t (ctx->fp, type, uo);
             }
         } else
             wop = NULL;
@@ -149,18 +155,18 @@ void *H5VL_log_unwrap_object (void *obj) {
 #ifdef LOGVOL_DEBUG
         if (H5VL_logi_debug_verbose ()) { printf ("H5VL_log_unwrap_object(%p)\n", obj); }
 #endif
-
-        /* Unrap the object with the underlying VOL */
-        uo = H5VLunwrap_object (op->uo, op->uvlid);
-
-        if (uo) {
-            hid_t err_id;
-
-            err_id = H5Eget_current_stack ();
-            if (op->fp != op) {  // Files are shadow copy
+        if (!op->fp->is_log_based_file) {
+            if (op->fp != op) {
+                uo = H5VLunwrap_object (op->uo, op->uvlid);
                 delete op;
+            } else {
+                uo = op->fp->wrapped_obj;
             }
-            H5Eset_current_stack (err_id);
+        } else if (op->fp != op) {
+            uo = H5VLunwrap_object (op->uo, op->uvlid);
+            delete op;
+        } else {
+            uo = op->fp->wrapped_obj;
         }
     }
     H5VL_LOGI_EXP_CATCH
@@ -180,8 +186,8 @@ err_out:;
  *---------------------------------------------------------------------------
  */
 herr_t H5VL_log_free_wrap_ctx (void *_wrap_ctx) {
-    herr_t err          = 0;
-    H5VL_log_obj_t *ctx = (H5VL_log_obj_t *)_wrap_ctx;
+    herr_t err               = 0;
+    H5VL_log_wrap_ctx_t *ctx = (H5VL_log_wrap_ctx_t *)_wrap_ctx;
     hid_t err_id;
 
     try {
@@ -193,6 +199,7 @@ herr_t H5VL_log_free_wrap_ctx (void *_wrap_ctx) {
         /* Release underlying VOL ID and wrap context */
         if (ctx->uo) err = H5VLfree_wrap_ctx (ctx->uo, ctx->uvlid);
         CHECK_ERR
+        H5Idec_ref (ctx->uvlid);
 
         H5Eset_current_stack (err_id);
 

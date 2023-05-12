@@ -1,35 +1,34 @@
-#!/bin/sh
+#!/bin/bash -l
 #
-# Copyright (C) 2021, Northwestern University and Argonne National Laboratory
+# Copyright (C) 2022, Northwestern University and Argonne National Laboratory
 # See COPYRIGHT notice in top-level directory.
 #
 
-# Exit immediately if a command exits with a non-zero status.
-set -e
-
-MPIRUN=`echo ${TESTMPIRUN} | ${SED} -e "s/NP/$1/g"`
+RUN_CMD=`echo ${TESTMPIRUN} | ${SED} -e "s/NP/$1/g"`
 # echo "MPIRUN = ${MPIRUN}"
 # echo "check_PROGRAMS=${check_PROGRAMS}"
 
-# export HDF5_VOL_CONNECTOR="LOG under_vol=0;under_info={}" 
-# export HDF5_PLUGIN_PATH="${top_builddir}/src/.libs"
+. $srcdir/../tests/common/wrap_runs.sh
 
-# ensure these 2 environment variables are not set
-unset HDF5_VOL_CONNECTOR
-unset HDF5_PLUGIN_PATH
+async_vol=no
+cache_vol=no
+log_vol=no
+getenv_vol
+if test "x$async_vol" = xyes ; then
+   # Skip Async I/O VOL as it requires to call MPI_Init_thread()
+   exit 0
+fi
 
-err=0
+# Skip test if TEST_NATIVE_VOL_ONLY is set, because H5Pset_vol() is called in
+# each of the example programs
+if test "x$TEST_NATIVE_VOL_ONLY" = x1 ; then
+   echo "Skip test of $1, as env TEST_NATIVE_VOL_ONLY is set to 1"
+   exit 0
+fi
+
+log_vol_file_only=1
+
 for p in ${check_PROGRAMS} ; do
-    outfile="${TESTOUTDIR}/${p}.h5"
-
-    ${MPIRUN} ./${p} ${outfile}
-
-    FILE_KIND=`${top_builddir}/utils/h5ldump/h5ldump -k $outfile`
-    if test "x${FILE_KIND}" != xHDF5-LogVOL ; then
-       echo "Error: Output file $outfile is not Log VOL, but ${FILE_KIND}"
-       err=1
-    else
-       echo "Success: Output file $outfile is ${FILE_KIND}"
-    fi
+   test_func ./$p
 done
-exit $err
+

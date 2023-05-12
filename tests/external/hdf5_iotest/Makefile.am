@@ -45,20 +45,21 @@ hdf5_iotest$(EXEEXT):
 	cd build && $(MAKE) -j4
 	cp build/src/hdf5_iotest .
 
-# build check targets but not invoke
-tests-local: all $(check_PROGRAMS)
-
 ptest: $(check_PROGRAMS)
-	@echo "==========================================================="
+	@echo "============================================================================"
 	@echo "    $(subdir): Parallel testing on 4 MPI processes"
-	@echo "==========================================================="
+	@echo "============================================================================"
 	@$(TESTS_ENVIRONMENT) \
 	$(srcdir)/test.sh 4 || exit 1
-
-.PHONY: ptest
 
 clean-local:
 	if [ -d "build" ]; then cd build && $(MAKE) clean ; fi
 
 distclean-local:
 	-rm -rf build hdf5-iotest
+
+# build check targets but not invoke
+tests-local: all $(check_PROGRAMS)
+
+.PHONY: ptest tests
+

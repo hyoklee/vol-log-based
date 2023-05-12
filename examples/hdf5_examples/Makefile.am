@@ -18,7 +18,13 @@ AM_CPPFLAGS += -DUSE_HDF5
 AM_CPPFLAGS += -DHDF5_PARALLEL
 LDADD = $(top_builddir)/src/libH5VL_log.la
 
-# The following files will be downloaded from HDF5 library
+# All Test programs will be downloaded from HDF5 library repo
+
+# Running dependentcy: (thus using -j option in 'make check' can fail)
+#     h5_crtatt.c  must run after h5_crtdat.c   (file dependency: dset.h5)
+#     h5_rdwt.c    must run after h5_crtdat.c   (file dependency: dset.h5)
+#     h5_crtgrpd.c must run after h5_crtgrpar.c (file dependency: groups.h5)
+#     h5_read.c    must run after h5_write.c    (file dependency: SDS.h5)
 SEQ_SRCS =  h5_crtdat.c \
             h5_crtatt.c \
             h5_crtgrp.c \
@@ -68,6 +74,11 @@ HDF5_URL = https://raw.githubusercontent.com/HDFGroup/hdf5/${HDF5_VERSION}
 $(SEQ_SRCS): %.c : $$(wildcard %.patch.$(HDF5_VERSION))
 	@DOWNLOAD_CMD@ $(HDF5_URL)/examples/$@
 	if [ -f ${srcdir}/$(basename $@).patch.$(HDF5_VERSION) ]; then patch -st $@ < ${srcdir}/$(basename $@).patch.$(HDF5_VERSION); fi
+	$(SED_I) -e "s|main(.*|main(int argc, char **argv)|g" $@
+	$(SED_I) -e "s|H5Fcreate(FILE|H5Fcreate(argv[1]|g" $@
+	$(SED_I) -e "s|H5Fcreate(H5FILE_NAME|H5Fcreate(argv[1]|g" $@
+	$(SED_I) -e "s|H5Fopen(FILE|H5Fopen(argv[1]|g" $@
+	$(SED_I) -e "s|H5Fopen(H5FILE_NAME|H5Fopen(argv[1]|g" $@
 
 $(PAR_SRCS): %.c : $$(wildcard %.patch.$(HDF5_VERSION))
 	@DOWNLOAD_CMD@ $(HDF5_URL)/examples/$@
@@ -75,7 +86,9 @@ $(PAR_SRCS): %.c : $$(wildcard %.patch.$(HDF5_VERSION))
 
 check_PROGRAMS = $(TESTPROGRAMS)
 
-EXTRA_DIST = wrap_runs.sh \
+EXTRA_DIST = seq_runs.sh \
+             parallel_run.sh \
+             ph5example.patch.$(HDF5_VERSION) \
              h5_attribute.patch.$(HDF5_VERSION) \
              h5_interm_group.patch.$(HDF5_VERSION)
 
@@ -85,6 +98,9 @@ EXTRA_DIST = wrap_runs.sh \
 # AM_TESTS_ENVIRONMENT += export TESTSEQRUN="$(TESTSEQRUN)";
 # AM_TESTS_ENVIRONMENT += export TESTOUTDIR="$(TESTOUTDIR)";
 TESTS_ENVIRONMENT  = export SED="$(SED)";
+TESTS_ENVIRONMENT += export EGREP="$(EGREP)";
+TESTS_ENVIRONMENT += export srcdir="$(srcdir)";
+TESTS_ENVIRONMENT += export top_srcdir="$(top_srcdir)";
 TESTS_ENVIRONMENT += export top_builddir="$(top_builddir)";
 TESTS_ENVIRONMENT += export TESTOUTDIR="$(TESTOUTDIR)";
 TESTS_ENVIRONMENT += export TESTSEQRUN="$(TESTSEQRUN)";
@@ -92,27 +108,41 @@ TESTS_ENVIRONMENT += export TESTMPIRUN="$(TESTMPIRUN)";
 TESTS_ENVIRONMENT += export TESTPROGRAMS="$(TESTPROGRAMS)";
 TESTS_ENVIRONMENT += export PAR_TESTS="$(PAR_TESTS)";
 
-H5_FILES = $(check_PROGRAMS:%=$(TESTOUTDIR)/%.h5)
+H5_OUTPUT_FILES = Attributes.h5 \
+                  dset.h5 \
+                  group.h5 \
+                  groups.h5 \
+                  interm_group.h5 \
+                  ParaEg0.h5 \
+                  ParaEg1.h5 \
+                  SDS.h5 \
+                  Select.h5 \
+                  subset.h5
 
-CLEANFILES = $(H5_FILES) core core.* *.gcda *.gcno *.gcov gmon.out *.h5 *.log
+H5_FILES = $(check_PROGRAMS:%=$(TESTOUTDIR)/%.h5) \
+           $(H5_OUTPUT_FILES:%=$(TESTOUTDIR)/%)
+
+CLEANFILES = $(H5_FILES) core core.*
 
 DISTCLEANFILES = $(SEQ_SRCS) $(PAR_SRCS)
 
 TEST_EXTENSIONS = .sh
-LOG_COMPILER = $(srcdir)/wrap_runs.sh
+LOG_COMPILER = $(srcdir)/seq_runs.sh
 SH_LOG_COMPILER =
 
 TESTS = $(TESTPROGRAMS)
 
-# build check targets but not invoke
-tests-local: all $(check_PROGRAMS)
-
 ptest: $(check_PROGRAMS)
-	@echo "==========================================================="
+	@echo "============================================================================"
 	@echo "    $(subdir): Parallel testing on 4 MPI processes"
-	@echo "==========================================================="
+	@echo "============================================================================"
 	@$(TESTS_ENVIRONMENT) \
 	$(srcdir)/parallel_run.sh 4 || exit 1
 
-.PHONY: ptest
+# build check targets but not invoke
+tests-local: all $(check_PROGRAMS)
+
+.PHONY: ptest tests
+
+.NOTPARALLEL:
 

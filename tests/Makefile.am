@@ -4,7 +4,7 @@
 #
 # @configure_input@
 
-C_SUBDIRS = basic dynamic testcases external passthru_features
+C_SUBDIRS = common basic dynamic testcases external passthru read_regular
 
 DIST_SUBDIRS = $(C_SUBDIRS) nc4
 
@@ -16,11 +16,13 @@ endif
 
 PTEST_SUBDIRS = $(SUBDIRS)
 
-EXTRA_DIST = testutils.hpp
-
 ptest:
 	@for d in $(PTEST_SUBDIRS) ; do \
 		$(MAKE) -C $$d ptest $$* || exit 1 ; \
 	done
 
-.PHONY: ptest
+# build check targets but not invoke
+tests-local: all $(check_PROGRAMS)
+
+.PHONY: ptest tests
+

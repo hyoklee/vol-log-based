@@ -2,7 +2,6 @@
  *  Copyright (C) 2022, Northwestern University and Argonne National Laboratory
  *  See COPYRIGHT notice in top-level directory.
  */
-/* $Id$ */
 
 #include <hdf5.h>
 #include <mpi.h>
@@ -20,15 +19,18 @@ int main (int argc, char **argv) {
     int err, nerrs = 0, rank, np, buf[10][10];
     const char *file_name;
     hid_t fid, faplid, space_id, dset, xfer_plist, fspace, mspace;
-    char volname[128] = {0};                      // Name of current VOL
-    ssize_t volname_len;                          // Length of volname
-    std::string vol_name;                         // Name of the VOL used
-    std::string target_vol_name;                  // Name of the specified VOL
-    char *env;                                    // HDF5_VOL_CONNECTOR environment variable
+    char volname[512] = {0};     // Name of current VOL
+    ssize_t volname_len;         // Length of volname
+    std::string vol_name;        // Name of the VOL used
+    std::string target_vol_name; // Name of the specified VOL
+    char *env_str;               // HDF5_VOL_CONNECTOR environment variable
     hsize_t ones[2] = {1, 1}, dims[2] = {10, 10}; /* dataspace dim sizes */
     hsize_t start[2], count[2];
+    vol_env env;
 
-    MPI_Init (&argc, &argv);
+    int mpi_required;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &mpi_required);
+
     MPI_Comm_size (MPI_COMM_WORLD, &np);
     MPI_Comm_rank (MPI_COMM_WORLD, &rank);
 
@@ -41,6 +43,8 @@ int main (int argc, char **argv) {
     } else {
         file_name = "test.h5";
     }
+
+    check_env(&env);
     SHOW_TEST_INFO ("Creating files")
 
     faplid = H5Pcreate (H5P_FILE_ACCESS);
@@ -53,13 +57,13 @@ int main (int argc, char **argv) {
     CHECK_ERR (fid)
 
     // Check VOL name
-    env = getenv ("HDF5_VOL_CONNECTOR");
-    if (env) {
-        target_vol_name = std::string (strtok (env, " "));
+    env_str = getenv ("HDF5_VOL_CONNECTOR");
+    if (env_str) {
+        target_vol_name = std::string (strtok (env_str, " "));
     } else {
         target_vol_name = "native";
     }
-    volname_len          = H5VLget_connector_name (fid, volname, 128);
+    volname_len          = H5VLget_connector_name (fid, volname, 512);
     volname[volname_len] = '\0';
     vol_name             = std::string (volname);
     EXP_VAL (vol_name, target_vol_name)
