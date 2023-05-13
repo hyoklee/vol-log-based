@@ -13,9 +13,12 @@ jobs:
     steps:
     - name: Checkout Spack
       uses: actions/checkout@v3
+      with:
+        repository: spack/spack
+        path: ./spack            
     - name: Test Spack
       run: |
-        . ./share/spack/setup-env.sh
+        . ./spack/share/spack/setup-env.sh
         spack spec hdf5-vol-log
         spack install hdf5-vol-log
         spack test run hdf5-vol-log  
